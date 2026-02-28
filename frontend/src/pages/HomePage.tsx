@@ -1,4 +1,4 @@
-import { getFeaturedServices, mockFreelancers } from '@/api/services'
+import { getFeaturedServices, getFreelancers } from '@/api/services'
 import FreelancerCard from '@/features/freelancers/FreelancerCard'
 import ServiceCard from '@/features/services/ServiceCard'
 import { SERVICE_CATEGORIES } from '@/types'
@@ -86,7 +86,13 @@ export default function HomePage() {
 		queryFn: getFeaturedServices,
 	})
 
+	const { data: freelancersData } = useQuery({
+		queryKey: ['top-freelancers'],
+		queryFn: () => getFreelancers(1, 4),
+	})
+
 	const featured = data ?? []
+	const topFreelancers = freelancersData?.data ?? []
 
 	return (
 		<div className='overflow-x-hidden'>
@@ -329,7 +335,7 @@ export default function HomePage() {
 						</div>
 					</Section>
 					<div className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4'>
-						{mockFreelancers.map((fl, i) => (
+						{topFreelancers.map((fl, i) => (
 							<FreelancerCard key={fl.id} freelancer={fl} index={i} />
 						))}
 					</div>

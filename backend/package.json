@@ -1,6 +1,9 @@
 {
 	"name": "cursovai-backend",
 	"version": "1.0.0",
+	"prisma": {
+		"seed": "ts-node prisma/seed.ts"
+	},
 	"description": "КурсовойМаркет — NestJS backend",
 	"author": "",
 	"private": true,

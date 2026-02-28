@@ -560,3 +560,20 @@ export async function getFreelancerById(
 		return null
 	}
 }
+
+export async function getFreelancers(
+	page = 1,
+	limit = 4,
+): Promise<PaginatedResponse<FreelancerProfile>> {
+	const { data } = await apiClient.get('/v1/users/freelancers', {
+		params: { page, limit },
+	})
+	const mapped = (data.data ?? []).map(mapFreelancer)
+	return {
+		data: mapped,
+		total: data.total ?? mapped.length,
+		page: data.page ?? page,
+		limit: data.limit ?? limit,
+		totalPages: Math.ceil((data.total ?? mapped.length) / limit),
+	}
+}
