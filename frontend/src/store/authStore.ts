@@ -1,9 +1,11 @@
+import { logoutApi } from '@/api/auth'
 import type { AuthState, User } from '@/types'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface AuthStore extends AuthState {
-	setUser: (user: User, token: string) => void
+	refreshToken: string | null
+	setUser: (user: User, accessToken: string, refreshToken?: string) => void
 	logout: () => void
 	updateUser: (updates: Partial<User>) => void
 }
@@ -13,14 +15,26 @@ export const useAuthStore = create<AuthStore>()(
 		set => ({
 			user: null,
 			token: null,
+			refreshToken: null,
 			isAuthenticated: false,
 
-			setUser: (user, token) => {
-				set({ user, token, isAuthenticated: true })
+			setUser: (user, accessToken, refreshToken) => {
+				set({
+					user,
+					token: accessToken,
+					refreshToken: refreshToken ?? null,
+					isAuthenticated: true,
+				})
 			},
 
 			logout: () => {
-				set({ user: null, token: null, isAuthenticated: false })
+				logoutApi()
+				set({
+					user: null,
+					token: null,
+					refreshToken: null,
+					isAuthenticated: false,
+				})
 			},
 
 			updateUser: updates => {

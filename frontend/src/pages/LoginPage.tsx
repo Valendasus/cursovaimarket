@@ -1,3 +1,4 @@
+import { loginApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
@@ -23,22 +24,12 @@ export default function LoginPage() {
 	} = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
 
 	const onSubmit = async (data: LoginForm) => {
-		// Mock login
-		await new Promise(r => setTimeout(r, 800))
-		if (data.email === 'test@test.com' && data.password === '123456') {
-			setUser(
-				{
-					id: '1',
-					email: data.email,
-					name: 'Тестовый Пользователь',
-					role: 'student',
-					avatar: undefined,
-					createdAt: new Date().toISOString(),
-				},
-				'mock-token',
-			)
-		} else {
-			setError('email', { message: 'Неверный email или пароль' })
+		try {
+			const result = await loginApi(data.email, data.password)
+			setUser(result.user, result.accessToken, result.refreshToken)
+		} catch (err: any) {
+			const msg = err?.response?.data?.message || 'Неверный email или пароль'
+			setError('email', { message: Array.isArray(msg) ? msg[0] : msg })
 		}
 	}
 

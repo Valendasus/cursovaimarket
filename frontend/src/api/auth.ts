@@ -1,0 +1,116 @@
+import type { FreelancerProfile, User, UserRole } from '@/types'
+import apiClient from './client'
+
+// ─── Response types (backend shape) ──────────────────────────────────────────
+
+interface BackendUser {
+	id: string
+	email: string
+	name: string
+	avatar?: string
+	role: 'STUDENT' | 'FREELANCER' | 'ADMIN'
+	createdAt: string
+	profile?: {
+		bio: string
+		rating: number
+		reviewsCount: number
+		completedOrders: number
+		specializations: string[]
+		isVerified: boolean
+		responseTime: string
+		telegram?: string
+		location?: string
+	} | null
+}
+
+interface AuthResponse {
+	user: BackendUser
+	accessToken: string
+	refreshToken: string
+}
+
+// ─── Mappers ─────────────────────────────────────────────────────────────────
+
+export function mapUser(u: BackendUser): User | FreelancerProfile {
+	const role = u.role.toLowerCase() as UserRole
+	const base: User = {
+		id: u.id,
+		email: u.email,
+		name: u.name,
+		avatar: u.avatar,
+		role,
+		createdAt: u.createdAt,
+	}
+
+	if (role === 'freelancer' && u.profile) {
+		return {
+			...base,
+			role: 'freelancer',
+			bio: u.profile.bio ?? '',
+			rating: u.profile.rating ?? 0,
+			reviewsCount: u.profile.reviewsCount ?? 0,
+			completedOrders: u.profile.completedOrders ?? 0,
+			specializations: u.profile.specializations ?? [],
+			isVerified: u.profile.isVerified ?? false,
+			responseTime: u.profile.responseTime ?? '~24 часа',
+			location: u.profile.location,
+		} as FreelancerProfile
+	}
+
+	return base
+}
+
+// ─── API calls ────────────────────────────────────────────────────────────────
+
+export async function loginApi(email: string, password: string) {
+	const { data } = await apiClient.post<AuthResponse>('/v1/auth/login', {
+		email,
+		password,
+	})
+	return {
+		user: mapUser(data.user),
+		accessToken: data.accessToken,
+		refreshToken: data.refreshToken,
+	}
+}
+
+export async function registerApi(
+	name: string,
+	email: string,
+	password: string,
+	role: 'STUDENT' | 'FREELANCER',
+) {
+	const { data } = await apiClient.post<AuthResponse>('/v1/auth/register', {
+		name,
+		email,
+		password,
+		role,
+	})
+	return {
+		user: mapUser(data.user),
+		accessToken: data.accessToken,
+		refreshToken: data.refreshToken,
+	}
+}
+
+export async function refreshApi(refreshToken: string) {
+	const { data } = await apiClient.post<AuthResponse>('/v1/auth/refresh', {
+		refreshToken,
+	})
+	return {
+		user: mapUser(data.user),
+		accessToken: data.accessToken,
+		refreshToken: data.refreshToken,
+	}
+}
+
+export async function logoutApi() {
+	await apiClient.post('/v1/auth/logout').catch(() => {
+		// игнорируем если сервер недоступен
+	})
+}
+
+export async function getMeApi() {
+	const { data } = await apiClient.get<BackendUser>('/v1/auth/me')
+	return mapUser(data)
+}

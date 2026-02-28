@@ -2,8 +2,12 @@ import type {
 	FreelancerProfile,
 	PaginatedResponse,
 	Service,
+	ServiceCategory,
 	ServiceFilters,
+	ServiceLevel,
+	ServicePackage,
 } from '@/types'
+import apiClient from './client'
 
 // ─── Mock data (replace with real API calls) ──────────────────────────────────
 
@@ -393,74 +397,114 @@ export const mockServices: Service[] = [
 	},
 ]
 
+// ─── Mappers (backend → frontend types) ─────────────────────────────────────
+
+function mapCategory(cat: string): ServiceCategory {
+	return cat.toLowerCase() as ServiceCategory
+}
+
+function mapLevel(lvl: string): ServiceLevel {
+	return lvl.toLowerCase() as ServiceLevel
+}
+
+function mapPackage(pkg: any): ServicePackage {
+	return {
+		id: pkg.id,
+		name: pkg.name,
+		price: Math.round(pkg.price / 100), // kopecks → rubles
+		deliveryDays: pkg.deliveryDays,
+		revisions: pkg.revisions ?? 1,
+		features: pkg.features ?? [],
+	}
+}
+
+function mapFreelancer(u: any): FreelancerProfile {
+	const p = u.profile ?? {}
+	return {
+		id: u.id,
+		email: u.email ?? '',
+		name: u.name,
+		avatar: u.avatar,
+		role: 'freelancer',
+		bio: p.bio ?? '',
+		rating: p.rating ?? 0,
+		reviewsCount: p.reviewsCount ?? 0,
+		completedOrders: p.completedOrders ?? 0,
+		specializations: p.specializations ?? [],
+		isVerified: p.isVerified ?? false,
+		responseTime: p.responseTime ?? '~24 часа',
+		location: p.location,
+		createdAt: u.createdAt ?? new Date().toISOString(),
+	}
+}
+
+function mapService(s: any): Service {
+	return {
+		id: s.id,
+		freelancerId: s.freelancerId,
+		freelancer: mapFreelancer(s.freelancer ?? {}),
+		title: s.title,
+		description: s.description,
+		category: mapCategory(s.category),
+		level: mapLevel(s.level),
+		tags: s.tags ?? [],
+		packages: (s.packages ?? []).map(mapPackage) as Service['packages'],
+		thumbnail: s.thumbnail ?? s.images?.[0],
+		rating: s.rating ?? 0,
+		reviewsCount: s.reviewsCount ?? 0,
+		ordersCount: s.ordersCount ?? 0,
+		isFeatured: s.isFeatured ?? false,
+		createdAt: s.createdAt,
+		updatedAt: s.updatedAt ?? s.createdAt,
+	}
+}
+
 // ─── API functions ───────────────────────────────────────────────────────────
 
 export async function getServices(
 	filters: ServiceFilters = {},
 ): Promise<PaginatedResponse<Service>> {
-	// TODO: replace with real API call
-	await new Promise(r => setTimeout(r, 300)) // simulate latency
+	const params: Record<string, unknown> = {}
+	if (filters.category) params.category = filters.category.toUpperCase()
+	if (filters.search) params.search = filters.search
+	if (filters.page) params.page = filters.page
+	if (filters.limit) params.limit = filters.limit
+	if (filters.sort === 'rating') params.sort = 'rating'
 
-	let filtered = [...mockServices]
-
-	if (filters.category) {
-		filtered = filtered.filter(s => s.category === filters.category)
-	}
-	if (filters.freelancerId) {
-		filtered = filtered.filter(s => s.freelancerId === filters.freelancerId)
-	}
-	if (filters.search) {
-		const q = filters.search.toLowerCase()
-		filtered = filtered.filter(
-			s =>
-				s.title.toLowerCase().includes(q) ||
-				s.description.toLowerCase().includes(q) ||
-				s.tags.some(t => t.toLowerCase().includes(q)),
-		)
-	}
-	if (filters.minRating) {
-		filtered = filtered.filter(s => s.rating >= filters.minRating!)
-	}
-
-	// Sort
-	if (filters.sort === 'rating') {
-		filtered.sort((a, b) => b.rating - a.rating)
-	} else if (filters.sort === 'price_asc') {
-		filtered.sort((a, b) => a.packages[0].price - b.packages[0].price)
-	} else if (filters.sort === 'price_desc') {
-		filtered.sort((a, b) => b.packages[0].price - a.packages[0].price)
-	} else if (filters.sort === 'popular') {
-		filtered.sort((a, b) => b.ordersCount - a.ordersCount)
-	}
-
-	const page = filters.page || 1
-	const limit = filters.limit || 12
-	const start = (page - 1) * limit
-	const data = filtered.slice(start, start + limit)
-
+	const { data } = await apiClient.get('/v1/services', { params })
+	const mapped = (data.data ?? []).map(mapService)
 	return {
-		data,
-		total: filtered.length,
-		page,
-		limit,
-		totalPages: Math.ceil(filtered.length / limit),
+		data: mapped,
+		total: data.total ?? mapped.length,
+		page: data.page ?? 1,
+		limit: data.limit ?? 12,
+		totalPages: Math.ceil((data.total ?? mapped.length) / (data.limit ?? 12)),
 	}
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-	await new Promise(r => setTimeout(r, 200))
-	return mockServices.find(s => s.id === id) || null
+	try {
+		const { data } = await apiClient.get(`/v1/services/${id}`)
+		return mapService(data)
+	} catch {
+		return null
+	}
 }
 
 export async function getFeaturedServices(): Promise<Service[]> {
-	await new Promise(r => setTimeout(r, 200))
-	return mockServices.filter(s => s.isFeatured).slice(0, 4)
+	const { data } = await apiClient.get('/v1/services', {
+		params: { limit: 4, page: 1 },
+	})
+	return (data.data ?? []).map(mapService)
 }
 
 export async function getFreelancerById(
 	id: string,
 ): Promise<FreelancerProfile | null> {
-	await new Promise(r => setTimeout(r, 200))
-	const service = mockServices.find(s => s.freelancerId === id)
-	return service?.freelancer || null
+	try {
+		const { data } = await apiClient.get(`/v1/users/${id}`)
+		return mapFreelancer(data)
+	} catch {
+		return null
+	}
 }

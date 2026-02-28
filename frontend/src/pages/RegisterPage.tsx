@@ -1,3 +1,4 @@
+import { registerApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
@@ -28,22 +29,24 @@ export default function RegisterPage() {
 	const {
 		register,
 		handleSubmit,
+		setError,
 		formState: { errors, isSubmitting },
 	} = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) })
 
 	const onSubmit = async (data: RegisterForm) => {
-		await new Promise(r => setTimeout(r, 800))
-		setUser(
-			{
-				id: crypto.randomUUID(),
-				email: data.email,
-				name: data.name,
-				role,
-				avatar: undefined,
-				createdAt: new Date().toISOString(),
-			},
-			'mock-token-new',
-		)
+		try {
+			const backendRole = role === 'freelancer' ? 'FREELANCER' : 'STUDENT'
+			const result = await registerApi(
+				data.name,
+				data.email,
+				data.password,
+				backendRole,
+			)
+			setUser(result.user, result.accessToken, result.refreshToken)
+		} catch (err: any) {
+			const msg = err?.response?.data?.message || 'Ошибка регистрации'
+			setError('email', { message: Array.isArray(msg) ? msg[0] : msg })
+		}
 	}
 
 	return (
