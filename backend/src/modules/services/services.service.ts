@@ -23,13 +23,16 @@ export class ServicesService {
 			page = 1,
 			limit = 12,
 			freelancerId,
+			isFeatured,
 		} = filters
 		const skip = (page - 1) * limit
 
 		const where: Prisma.ServiceWhereInput = {
+			isActive: true,
 			...(category && { category }),
 			...(level && { level }),
 			...(freelancerId && { freelancerId }),
+			...(isFeatured !== undefined && { isFeatured }),
 			...(search && {
 				OR: [
 					{ title: { contains: search, mode: 'insensitive' } },
@@ -75,7 +78,8 @@ export class ServicesService {
 				},
 			},
 		})
-		if (!service) throw new NotFoundException('Услуга не найдена')
+		if (!service || !service.isActive)
+			throw new NotFoundException('Услуга не найдена')
 		return service
 	}
 

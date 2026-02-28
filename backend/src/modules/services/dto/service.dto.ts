@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { ServiceCategory, ServiceLevel } from '@prisma/client'
-import { Type } from 'class-transformer'
+import { Transform, Type } from 'class-transformer'
 import {
 	ArrayMinSize,
 	IsArray,
+	IsBoolean,
 	IsEnum,
 	IsInt,
 	IsNotEmpty,
@@ -29,6 +30,12 @@ export class CreatePackageDto {
 	@IsInt()
 	@Min(1)
 	deliveryDays: number
+
+	@ApiPropertyOptional({ example: 3, description: '-1 = без ограничений' })
+	@IsOptional()
+	@IsInt()
+	@Min(-1)
+	revisions?: number
 
 	@ApiPropertyOptional({ example: 'Что входит в пакет' })
 	@IsOptional()
@@ -138,6 +145,12 @@ export class ServiceFiltersDto {
 	@IsOptional()
 	@IsString()
 	freelancerId?: string
+
+	@ApiPropertyOptional({ description: 'Только избранные услуги' })
+	@IsOptional()
+	@IsBoolean()
+	@Transform(({ value }) => value === 'true' || value === true)
+	isFeatured?: boolean
 
 	@ApiPropertyOptional({ default: 1 })
 	@IsOptional()

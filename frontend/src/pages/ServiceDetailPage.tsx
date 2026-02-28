@@ -178,7 +178,7 @@ export default function ServiceDetailPage() {
 						<div className='glass-card rounded-2xl p-6'>
 							<div className='flex items-baseline justify-between mb-4'>
 								<span className='text-3xl font-bold text-foreground'>
-									{formatPrice(pkg?.price ?? service.packages[0].price)}
+									{formatPrice(pkg?.price ?? 0)}
 								</span>
 								<span className='text-sm text-muted-foreground'>за работу</span>
 							</div>

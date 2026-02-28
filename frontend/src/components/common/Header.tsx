@@ -23,9 +23,9 @@ import {
 import { useEffect, useState } from 'react'
 
 const navLinks = [
-	{ label: 'Услуги', href: '/services' },
-	{ label: 'Как это работает', href: '/#how-it-works' },
-	{ label: 'Фрилансерам', href: '/#for-freelancers' },
+	{ label: 'Услуги', href: '/services', isRoute: true },
+	{ label: 'Как это работает', href: '/#how-it-works', isRoute: false },
+	{ label: 'Фрилансерам', href: '/#for-freelancers', isRoute: false },
 ]
 
 export default function Header() {
@@ -62,18 +62,31 @@ export default function Header() {
 
 					{/* Desktop Nav */}
 					<nav className='hidden md:flex items-center gap-1'>
-						{navLinks.map(link => (
-							<Link
-								key={link.href}
-								to={link.href}
-								className={cn(
-									'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-									'text-muted-foreground hover:text-foreground hover:bg-accent',
-								)}
-							>
-								{link.label}
-							</Link>
-						))}
+						{navLinks.map(link =>
+							link.isRoute ? (
+								<Link
+									key={link.href}
+									to={link.href}
+									className={cn(
+										'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+										'text-muted-foreground hover:text-foreground hover:bg-accent',
+									)}
+								>
+									{link.label}
+								</Link>
+							) : (
+								<a
+									key={link.href}
+									href={link.href}
+									className={cn(
+										'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+										'text-muted-foreground hover:text-foreground hover:bg-accent',
+									)}
+								>
+									{link.label}
+								</a>
+							),
+						)}
 					</nav>
 
 					{/* Auth / User */}
@@ -159,16 +172,27 @@ export default function Header() {
 						className='md:hidden border-t border-border bg-background/95 backdrop-blur-xl overflow-hidden'
 					>
 						<div className='container-custom py-4 flex flex-col gap-1'>
-							{navLinks.map(link => (
-								<Link
-									key={link.href}
-									to={link.href}
-									onClick={() => setMobileOpen(false)}
-									className='px-4 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors'
-								>
-									{link.label}
-								</Link>
-							))}
+							{navLinks.map(link =>
+								link.isRoute ? (
+									<Link
+										key={link.href}
+										to={link.href}
+										onClick={() => setMobileOpen(false)}
+										className='px-4 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors'
+									>
+										{link.label}
+									</Link>
+								) : (
+									<a
+										key={link.href}
+										href={link.href}
+										onClick={() => setMobileOpen(false)}
+										className='px-4 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors'
+									>
+										{link.label}
+									</a>
+								),
+							)}
 							<div className='flex gap-2 mt-3 pt-3 border-t border-border'>
 								{isAuthenticated ? (
 									<>

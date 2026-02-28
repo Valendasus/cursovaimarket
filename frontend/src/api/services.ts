@@ -545,7 +545,7 @@ export async function getServiceById(id: string): Promise<Service | null> {
 
 export async function getFeaturedServices(): Promise<Service[]> {
 	const { data } = await apiClient.get('/v1/services', {
-		params: { limit: 4, page: 1 },
+		params: { limit: 4, page: 1, isFeatured: true },
 	})
 	return (data.data ?? []).map(mapService)
 }
