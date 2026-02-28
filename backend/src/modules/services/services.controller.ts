@@ -1,4 +1,6 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { Roles } from '@/common/decorators/roles.decorator'
+import { RolesGuard } from '@/common/guards/roles.guard'
 import {
 	Body,
 	Controller,
@@ -12,6 +14,7 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { UserRole } from '@prisma/client'
 import {
 	CreateServiceDto,
 	ServiceFiltersDto,
@@ -37,7 +40,8 @@ export class ServicesController {
 	}
 
 	@Post()
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Создать услугу (только фрилансер)' })
 	create(@CurrentUser('id') userId: string, @Body() dto: CreateServiceDto) {
