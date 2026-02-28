@@ -59,7 +59,7 @@ export default function FreelancerPage() {
 		)
 	}
 
-	const freelancerServices = servicesData?.items ?? []
+	const freelancerServices = servicesData?.data ?? []
 
 	return (
 		<div className='min-h-screen bg-background'>

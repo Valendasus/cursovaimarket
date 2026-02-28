@@ -35,7 +35,7 @@ export default function RegisterPage() {
 		await new Promise(r => setTimeout(r, 800))
 		setUser(
 			{
-				id: Math.random().toString(36).slice(2),
+				id: crypto.randomUUID(),
 				email: data.email,
 				name: data.name,
 				role,

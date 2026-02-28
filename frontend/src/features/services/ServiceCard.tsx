@@ -21,7 +21,11 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.4, delay: index * 0.05 }}
 		>
-			<Link to={`/services/${service.id}`} className='block group'>
+			<Link
+				to='/services/$serviceId'
+				params={{ serviceId: service.id }}
+				className='block group'
+			>
 				<div className='rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300'>
 					{/* Thumbnail */}
 					<div className='relative h-44 overflow-hidden bg-muted'>
