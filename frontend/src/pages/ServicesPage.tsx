@@ -1,29 +1,40 @@
 import { getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
-import { SERVICE_CATEGORIES, type ServiceCategory } from '@/types'
+import {
+	SERVICE_CATEGORIES,
+	SERVICE_LEVELS,
+	type ServiceCategory,
+	type ServiceLevel,
+} from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { useState } from 'react'
 
-const LEVELS = ['Все', 'Начальный', 'Средний', 'Продвинутый']
+const LEVEL_OPTIONS: { value: ServiceLevel | 'all'; label: string }[] = [
+	{ value: 'all', label: 'Все уровни' },
+	{ value: 'bachelor', label: SERVICE_LEVELS.bachelor },
+	{ value: 'specialist', label: SERVICE_LEVELS.specialist },
+	{ value: 'master', label: SERVICE_LEVELS.master },
+]
 
 export default function ServicesPage() {
 	const [search, setSearch] = useState('')
 	const [activeCategory, setActiveCategory] = useState<ServiceCategory | 'all'>(
 		'all',
 	)
-	const [activeLevel, setActiveLevel] = useState('Все')
+	const [activeLevel, setActiveLevel] = useState<ServiceLevel | 'all'>('all')
 	const [showFilters, setShowFilters] = useState(false)
 
 	const { data, isLoading } = useQuery({
-		queryKey: ['services', activeCategory],
+		queryKey: ['services', activeCategory, activeLevel],
 		queryFn: () =>
 			getServices({
 				category:
 					activeCategory === 'all'
 						? undefined
 						: (activeCategory as ServiceCategory),
+				level: activeLevel === 'all' ? undefined : activeLevel,
 			}),
 	})
 
@@ -128,17 +139,17 @@ export default function ServicesPage() {
 						<div className='glass-card rounded-2xl p-5'>
 							<h3 className='font-semibold text-foreground mb-3'>Уровень</h3>
 							<div className='space-y-1'>
-								{LEVELS.map(level => (
+								{LEVEL_OPTIONS.map(opt => (
 									<button
-										key={level}
-										onClick={() => setActiveLevel(level)}
+										key={opt.value}
+										onClick={() => setActiveLevel(opt.value)}
 										className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-											activeLevel === level
+											activeLevel === opt.value
 												? 'bg-primary text-primary-foreground'
 												: 'text-muted-foreground hover:text-foreground hover:bg-muted'
 										}`}
 									>
-										{level}
+										{opt.label}
 									</button>
 								))}
 							</div>

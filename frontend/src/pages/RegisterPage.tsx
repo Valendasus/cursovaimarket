@@ -1,7 +1,7 @@
 import { registerApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { Lock, Mail, User, UserPlus } from 'lucide-react'
 import { useState } from 'react'
@@ -25,6 +25,7 @@ type RegisterForm = z.infer<typeof registerSchema>
 export default function RegisterPage() {
 	const [role, setRole] = useState<'student' | 'freelancer'>('student')
 	const { setUser } = useAuthStore()
+	const navigate = useNavigate()
 
 	const {
 		register,
@@ -43,6 +44,7 @@ export default function RegisterPage() {
 				backendRole,
 			)
 			setUser(result.user, result.accessToken, result.refreshToken)
+			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const axiosMsg =
 				err instanceof Object && 'response' in err

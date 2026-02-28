@@ -1,7 +1,7 @@
 import { loginApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { Lock, LogIn, Mail } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -16,6 +16,7 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
 	const { setUser } = useAuthStore()
+	const navigate = useNavigate()
 	const {
 		register,
 		handleSubmit,
@@ -27,6 +28,7 @@ export default function LoginPage() {
 		try {
 			const result = await loginApi(data.email, data.password)
 			setUser(result.user, result.accessToken, result.refreshToken)
+			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const axiosMsg =
 				err instanceof Object && 'response' in err
