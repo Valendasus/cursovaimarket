@@ -43,8 +43,13 @@ export default function RegisterPage() {
 				backendRole,
 			)
 			setUser(result.user, result.accessToken, result.refreshToken)
-		} catch (err: any) {
-			const msg = err?.response?.data?.message || 'Ошибка регистрации'
+		} catch (err: unknown) {
+			const axiosMsg =
+				err instanceof Object && 'response' in err
+					? (err as { response: { data: { message: string | string[] } } })
+							.response?.data?.message
+					: undefined
+			const msg = axiosMsg ?? 'Ошибка регистрации'
 			setError('email', { message: Array.isArray(msg) ? msg[0] : msg })
 		}
 	}

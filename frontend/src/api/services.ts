@@ -407,7 +407,56 @@ function mapLevel(lvl: string): ServiceLevel {
 	return lvl.toLowerCase() as ServiceLevel
 }
 
-function mapPackage(pkg: any): ServicePackage {
+interface BackendPackage {
+	id: string
+	name: string
+	price: number
+	deliveryDays: number
+	revisions?: number
+	features?: string[]
+}
+
+interface BackendProfile {
+	bio?: string
+	rating?: number
+	reviewsCount?: number
+	completedOrders?: number
+	specializations?: string[]
+	isVerified?: boolean
+	responseTime?: string
+	location?: string
+}
+
+interface BackendUser {
+	id: string
+	email?: string
+	name: string
+	avatar?: string
+	createdAt?: string
+	profile?: BackendProfile | null
+}
+
+interface BackendService {
+	id: string
+	freelancerId: string
+	freelancer?: BackendUser
+	title: string
+	description: string
+	category: string
+	level: string
+	tags?: string[]
+	packages?: BackendPackage[]
+	thumbnail?: string
+	images?: string[]
+	rating?: number
+	reviewsCount?: number
+	ordersCount?: number
+	isFeatured?: boolean
+	createdAt: string
+	updatedAt?: string
+}
+
+function mapPackage(pkg: BackendPackage): ServicePackage {
 	return {
 		id: pkg.id,
 		name: pkg.name,
@@ -418,8 +467,8 @@ function mapPackage(pkg: any): ServicePackage {
 	}
 }
 
-function mapFreelancer(u: any): FreelancerProfile {
-	const p = u.profile ?? {}
+function mapFreelancer(u: BackendUser): FreelancerProfile {
+	const p: BackendProfile = u.profile ?? {}
 	return {
 		id: u.id,
 		email: u.email ?? '',
@@ -438,11 +487,12 @@ function mapFreelancer(u: any): FreelancerProfile {
 	}
 }
 
-function mapService(s: any): Service {
+function mapService(s: BackendService): Service {
+	const freelancerFallback: BackendUser = { id: s.freelancerId, name: '' }
 	return {
 		id: s.id,
 		freelancerId: s.freelancerId,
-		freelancer: mapFreelancer(s.freelancer ?? {}),
+		freelancer: mapFreelancer(s.freelancer ?? freelancerFallback),
 		title: s.title,
 		description: s.description,
 		category: mapCategory(s.category),

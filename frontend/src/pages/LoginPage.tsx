@@ -27,8 +27,13 @@ export default function LoginPage() {
 		try {
 			const result = await loginApi(data.email, data.password)
 			setUser(result.user, result.accessToken, result.refreshToken)
-		} catch (err: any) {
-			const msg = err?.response?.data?.message || 'Неверный email или пароль'
+		} catch (err: unknown) {
+			const axiosMsg =
+				err instanceof Object && 'response' in err
+					? (err as { response: { data: { message: string | string[] } } })
+							.response?.data?.message
+					: undefined
+			const msg = axiosMsg ?? 'Неверный email или пароль'
 			setError('email', { message: Array.isArray(msg) ? msg[0] : msg })
 		}
 	}
