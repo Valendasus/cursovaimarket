@@ -134,6 +134,11 @@ export class ServiceFiltersDto {
 	@IsString()
 	search?: string
 
+	@ApiPropertyOptional()
+	@IsOptional()
+	@IsString()
+	freelancerId?: string
+
 	@ApiPropertyOptional({ default: 1 })
 	@IsOptional()
 	@Type(() => Number)

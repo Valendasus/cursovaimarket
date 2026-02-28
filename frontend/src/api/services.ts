@@ -516,6 +516,8 @@ export async function getServices(
 ): Promise<PaginatedResponse<Service>> {
 	const params: Record<string, unknown> = {}
 	if (filters.category) params.category = filters.category.toUpperCase()
+	if (filters.level) params.level = filters.level.toUpperCase()
+	if (filters.freelancerId) params.freelancerId = filters.freelancerId
 	if (filters.search) params.search = filters.search
 	if (filters.page) params.page = filters.page
 	if (filters.limit) params.limit = filters.limit

@@ -16,12 +16,20 @@ export class ServicesService {
 	constructor(private prisma: PrismaService) {}
 
 	async findAll(filters: ServiceFiltersDto) {
-		const { category, level, search, page = 1, limit = 12 } = filters
+		const {
+			category,
+			level,
+			search,
+			page = 1,
+			limit = 12,
+			freelancerId,
+		} = filters
 		const skip = (page - 1) * limit
 
 		const where: Prisma.ServiceWhereInput = {
 			...(category && { category }),
 			...(level && { level }),
+			...(freelancerId && { freelancerId }),
 			...(search && {
 				OR: [
 					{ title: { contains: search, mode: 'insensitive' } },
