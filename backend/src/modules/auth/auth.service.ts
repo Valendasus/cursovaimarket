@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { randomUUID } from 'crypto'
 import { LoginDto, RegisterDto } from './dto/auth.dto'
 
 @Injectable()
@@ -101,7 +102,7 @@ export class AuthService {
 	// ─── Helpers ───────────────────────────────────────────────────────────────
 
 	private async generateTokens(userId: string, email: string, role: string) {
-		const payload = { sub: userId, email, role }
+		const payload = { sub: userId, email, role, jti: randomUUID() }
 
 		const [accessToken, refreshToken] = await Promise.all([
 			this.jwt.signAsync(payload, {
