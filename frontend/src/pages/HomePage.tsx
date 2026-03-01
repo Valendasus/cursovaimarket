@@ -7,11 +7,19 @@ import { Link } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import {
 	ArrowRight,
+	Award,
 	BookOpen,
 	CheckCircle,
+	Clock,
+	CreditCard,
+	FileCheck,
+	MessageSquare,
+	RotateCcw,
+	Search,
 	Shield,
 	Star,
 	TrendingUp,
+	Upload,
 	Users,
 	Zap,
 } from 'lucide-react'
@@ -53,27 +61,129 @@ const stats = [
 	{ icon: TrendingUp, value: '98%', label: 'Довольных заказчиков' },
 ]
 
-// ─── Steps ─────────────────────────────────────────────────────────────────────
-const steps = [
+// ─── How it works data ─────────────────────────────────────────────────────────
+const studentSteps = [
 	{
+		icon: Search,
 		num: '01',
-		title: 'Опишите задачу',
-		description: 'Укажите тему, объём, требования вуза и желаемые сроки',
+		title: 'Найдите услугу',
+		description:
+			'Введите тему или выберите категорию. Фильтры по дисциплине, уровню и бюджету помогут найти подходящего автора за минуты.',
+		color: 'from-blue-500/20 to-blue-600/5',
+		iconColor: 'text-blue-500',
+		badge: 'Бесплатно',
 	},
 	{
+		icon: MessageSquare,
 		num: '02',
-		title: 'Выберите исполнителя',
-		description: 'Просмотрите профили, отзывы и портфолио авторов',
+		title: 'Обсудите детали',
+		description:
+			'Изучите профиль исполнителя, его портфолио и отзывы. Выберите нужный пакет — базовый, стандартный или премиум.',
+		color: 'from-violet-500/20 to-violet-600/5',
+		iconColor: 'text-violet-500',
+		badge: 'Гарантировано',
 	},
 	{
+		icon: CreditCard,
 		num: '03',
+		title: 'Оплатите заказ',
+		description:
+			'Средства хранятся на безопасном счёте до принятия работы. Исполнитель получает оплату только после вашего одобрения.',
+		color: 'from-emerald-500/20 to-emerald-600/5',
+		iconColor: 'text-emerald-500',
+		badge: 'Защита платежей',
+	},
+	{
+		icon: FileCheck,
+		num: '04',
 		title: 'Получите результат',
-		description: 'Исполнитель пришлёт работу, вы проверите и примете её',
+		description:
+			'Работа приходит в срок. Проверьте, при необходимости запросите правки — и примите заказ. Всё просто.',
+		color: 'from-orange-500/20 to-orange-600/5',
+		iconColor: 'text-orange-500',
+		badge: 'В срок',
+	},
+]
+
+const freelancerSteps = [
+	{
+		icon: Upload,
+		num: '01',
+		title: 'Создайте профиль',
+		description:
+			'Расскажите о своих компетенциях, загрузите примеры работ и пройдите верификацию — это бесплатно и займёт 10 минут.',
+		color: 'from-pink-500/20 to-pink-600/5',
+		iconColor: 'text-pink-500',
+		badge: 'Без комиссии за регистрацию',
+	},
+	{
+		icon: BookOpen,
+		num: '02',
+		title: 'Опубликуйте услугу',
+		description:
+			'Создайте карточку с описанием, пакетами цен и сроками. Сами определяете фиксированную стоимость своей работы.',
+		color: 'from-cyan-500/20 to-cyan-600/5',
+		iconColor: 'text-cyan-500',
+		badge: 'Полный контроль цен',
+	},
+	{
+		icon: Clock,
+		num: '03',
+		title: 'Выполните заказ',
+		description:
+			'Получайте заказы, общайтесь с заказчиком через встроенный чат и сдавайте работу через платформу — удобно и прозрачно.',
+		color: 'from-amber-500/20 to-amber-600/5',
+		iconColor: 'text-amber-500',
+		badge: 'Встроенный чат',
+	},
+	{
+		icon: Award,
+		num: '04',
+		title: 'Зарабатывайте и растите',
+		description:
+			'Получайте оплату сразу после принятия работы. Накапливайте отзывы, повышайте рейтинг и привлекайте больше клиентов.',
+		color: 'from-lime-500/20 to-lime-600/5',
+		iconColor: 'text-lime-600',
+		badge: 'Выплата в день',
+	},
+]
+
+const platformFeatures = [
+	{
+		icon: Shield,
+		title: 'Защита платежей',
+		desc: 'Деньги хранятся в безопасном резерве до принятия работы',
+	},
+	{
+		icon: RotateCcw,
+		title: 'Бесплатные правки',
+		desc: 'Каждый пакет включает фиксированное число бесплатных доработок',
+	},
+	{
+		icon: Star,
+		title: 'Рейтинговая система',
+		desc: 'Честные отзывы после каждого заказа — без накруток',
+	},
+	{
+		icon: CheckCircle,
+		title: 'Проверенные авторы',
+		desc: 'Верификация специализации и проверка портфолио перед публикацией',
+	},
+	{
+		icon: Clock,
+		title: 'Гарантия сроков',
+		desc: 'Исполнители несут ответственность за соблюдение дедлайна',
+	},
+	{
+		icon: MessageSquare,
+		title: 'Поддержка 24/7',
+		desc: 'Команда КурсовогоМаркета готова помочь в любое время',
 	},
 ]
 
 export default function HomePage() {
 	const heroRef = useRef<HTMLDivElement>(null)
+	const [howTab, setHowTab] = useState<'student' | 'freelancer'>('student')
 	const { scrollYProgress } = useScroll({
 		target: heroRef,
 		offset: ['start start', 'end start'],
@@ -284,39 +394,170 @@ export default function HomePage() {
 			</section>
 
 			{/* ── How it works ──────────────────────────────────────────────────────── */}
-			<section className='py-20 container-custom'>
-				<Section>
-					<div className='text-center mb-12'>
-						<h2 className='text-2xl md:text-3xl font-bold text-foreground mb-2'>
-							Как это работает
-						</h2>
-						<p className='text-muted-foreground max-w-lg mx-auto'>
-							Три простых шага — и ваша работа готова
-						</p>
-					</div>
-					<div className='grid md:grid-cols-3 gap-6 max-w-3xl mx-auto'>
-						{steps.map((step, i) => (
-							<motion.div
-								key={step.num}
-								initial={{ opacity: 0, y: 24 }}
-								whileInView={{ opacity: 1, y: 0 }}
+			<section id='how-it-works' className='py-20 bg-muted/20'>
+				<div className='container-custom'>
+					{/* Header */}
+					<Section>
+						<div className='text-center mb-10'>
+							<motion.span
+								initial={{ opacity: 0, scale: 0.9 }}
+								whileInView={{ opacity: 1, scale: 1 }}
 								viewport={{ once: true }}
-								transition={{ delay: i * 0.15 }}
-								className='text-center'
+								className='inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4'
 							>
-								<div className='inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary font-bold text-xl mb-4'>
-									{step.num}
-								</div>
-								<h3 className='font-semibold text-foreground mb-2'>
-									{step.title}
-								</h3>
-								<p className='text-sm text-muted-foreground leading-relaxed'>
-									{step.description}
-								</p>
-							</motion.div>
-						))}
+								<Zap className='w-3.5 h-3.5' />
+								Просто и понятно
+							</motion.span>
+							<h2 className='text-2xl md:text-3xl font-bold text-foreground mb-3'>
+								Как это работает
+							</h2>
+							<p className='text-muted-foreground max-w-md mx-auto text-sm leading-relaxed'>
+								Платформа создана для удобства обеих сторон — заказчиков и
+								исполнителей
+							</p>
+						</div>
+					</Section>
+
+					{/* Tab switcher */}
+					<div className='flex justify-center mb-10'>
+						<div className='inline-flex items-center gap-1 p-1 rounded-xl bg-muted border border-border'>
+							{(['student', 'freelancer'] as const).map(tab => (
+								<button
+									key={tab}
+									onClick={() => setHowTab(tab)}
+									className={`relative px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+										howTab === tab
+											? 'text-primary-foreground'
+											: 'text-muted-foreground hover:text-foreground'
+									}`}
+								>
+									{howTab === tab && (
+										<motion.div
+											layoutId='how-tab-bg'
+											className='absolute inset-0 bg-primary rounded-lg shadow-sm'
+											transition={{
+												type: 'spring',
+												stiffness: 400,
+												damping: 30,
+											}}
+										/>
+									)}
+									<span className='relative z-10'>
+										{tab === 'student' ? '👨‍🎓 Я заказчик' : '👩‍💻 Я исполнитель'}
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
-				</Section>
+
+					{/* Steps */}
+					<AnimatePresence mode='wait'>
+						<motion.div
+							key={howTab}
+							initial={{ opacity: 0, y: 16 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: -12 }}
+							transition={{ duration: 0.3 }}
+							className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
+						>
+							{(howTab === 'student' ? studentSteps : freelancerSteps).map(
+								(step, i) => (
+									<motion.div
+										key={step.num}
+										initial={{ opacity: 0, y: 24 }}
+										whileInView={{ opacity: 1, y: 0 }}
+										viewport={{ once: true }}
+										transition={{ delay: i * 0.1 }}
+										className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg transition-all duration-300'
+									>
+										{/* connector line */}
+										{i <
+											(howTab === 'student' ? studentSteps : freelancerSteps)
+												.length -
+												1 && (
+											<div className='hidden xl:block absolute top-10 -right-4 w-8 h-px bg-border z-10' />
+										)}
+
+										<div
+											className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br ${step.color} mb-4 group-hover:scale-110 transition-transform duration-300`}
+										>
+											<step.icon className={`w-5 h-5 ${step.iconColor}`} />
+										</div>
+
+										<div className='flex items-center justify-between mb-2'>
+											<span className='text-xs font-bold text-muted-foreground tracking-widest'>
+												ШАГ {step.num}
+											</span>
+											<span className='text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium'>
+												{step.badge}
+											</span>
+										</div>
+
+										<h3 className='font-semibold text-foreground mb-2 text-base'>
+											{step.title}
+										</h3>
+										<p className='text-sm text-muted-foreground leading-relaxed'>
+											{step.description}
+										</p>
+									</motion.div>
+								),
+							)}
+						</motion.div>
+					</AnimatePresence>
+
+					{/* Platform features */}
+					<Section>
+						<div className='rounded-3xl border border-border bg-background p-8'>
+							<div className='text-center mb-8'>
+								<h3 className='text-xl font-bold text-foreground mb-2'>
+									Почему выбирают КурсовойМаркет
+								</h3>
+								<p className='text-sm text-muted-foreground max-w-sm mx-auto'>
+									Мы сделали всё, чтобы сотрудничество было безопасным, удобным
+									и выгодным
+								</p>
+							</div>
+							<div className='grid sm:grid-cols-2 lg:grid-cols-3 gap-5'>
+								{platformFeatures.map((feat, i) => (
+									<motion.div
+										key={feat.title}
+										initial={{ opacity: 0, y: 16 }}
+										whileInView={{ opacity: 1, y: 0 }}
+										viewport={{ once: true }}
+										transition={{ delay: i * 0.07 }}
+										className='flex gap-3 p-4 rounded-xl hover:bg-muted/50 transition-colors group'
+									>
+										<div className='flex-shrink-0 w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors'>
+											<feat.icon className='w-4 h-4 text-primary' />
+										</div>
+										<div>
+											<p className='text-sm font-semibold text-foreground mb-0.5'>
+												{feat.title}
+											</p>
+											<p className='text-xs text-muted-foreground leading-relaxed'>
+												{feat.desc}
+											</p>
+										</div>
+									</motion.div>
+								))}
+							</div>
+
+							{/* CTA inside block */}
+							<div className='mt-8 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4'>
+								<p className='text-sm text-muted-foreground'>
+									Готовы попробовать? Регистрация занимает менее 2 минут.
+								</p>
+								<Link
+									to='/register'
+									className='inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-all hover:scale-[1.02] shadow-md shadow-primary/20 flex-shrink-0'
+								>
+									Начать бесплатно
+									<ArrowRight className='w-4 h-4' />
+								</Link>
+							</div>
+						</div>
+					</Section>
+				</div>
 			</section>
 
 			{/* ── Top Freelancers ───────────────────────────────────────────────────── */}

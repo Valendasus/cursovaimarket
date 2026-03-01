@@ -25,7 +25,12 @@ import { useEffect, useState } from 'react'
 const navLinks = [
 	{ label: 'Услуги', href: '/services', isRoute: true },
 	{ label: 'Исполнители', href: '/freelancers', isRoute: true },
-	{ label: 'Как это работает', href: '/#how-it-works', isRoute: false },
+	{
+		label: 'Как это работает',
+		href: '/#how-it-works',
+		isRoute: false,
+		anchor: 'how-it-works',
+	},
 ]
 
 export default function Header() {
@@ -78,6 +83,18 @@ export default function Header() {
 								<a
 									key={link.href}
 									href={link.href}
+									onClick={e => {
+										if (link.anchor) {
+											const el = document.getElementById(link.anchor)
+											if (el) {
+												e.preventDefault()
+												el.scrollIntoView({
+													behavior: 'smooth',
+													block: 'start',
+												})
+											}
+										}
+									}}
 									className={cn(
 										'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
 										'text-muted-foreground hover:text-foreground hover:bg-accent',
@@ -186,7 +203,19 @@ export default function Header() {
 									<a
 										key={link.href}
 										href={link.href}
-										onClick={() => setMobileOpen(false)}
+										onClick={e => {
+											setMobileOpen(false)
+											if (link.anchor) {
+												const el = document.getElementById(link.anchor)
+												if (el) {
+													e.preventDefault()
+													el.scrollIntoView({
+														behavior: 'smooth',
+														block: 'start',
+													})
+												}
+											}
+										}}
 										className='px-4 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors'
 									>
 										{link.label}
