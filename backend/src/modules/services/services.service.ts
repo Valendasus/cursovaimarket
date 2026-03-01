@@ -115,7 +115,12 @@ export class ServicesService {
 		if (service.freelancerId !== userId) {
 			throw new ForbiddenException('Нет доступа')
 		}
-		await this.prisma.service.delete({ where: { id } })
+		// Soft-delete: packages are referenced by orders without cascade, so we
+		// mark the service as inactive rather than physically deleting it.
+		await this.prisma.service.update({
+			where: { id },
+			data: { isActive: false },
+		})
 		return { message: 'Услуга удалена' }
 	}
 }

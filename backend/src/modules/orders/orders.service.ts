@@ -1,5 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service'
 import {
+	BadRequestException,
 	ForbiddenException,
 	Injectable,
 	NotFoundException,
@@ -82,10 +83,36 @@ export class OrdersService {
 		const order = await this.prisma.order.findUnique({ where: { id } })
 		if (!order) throw new NotFoundException('Заказ не найден')
 
-		// Only freelancer can change status to IN_PROGRESS, COMPLETED, CANCELLED
-		// Only student can CANCEL
 		if (order.freelancerId !== userId && order.studentId !== userId) {
 			throw new ForbiddenException('Нет доступа')
+		}
+
+		// Terminal statuses — no further transitions allowed
+		const terminal: OrderStatus[] = [
+			OrderStatus.COMPLETED,
+			OrderStatus.CANCELLED,
+		]
+		if (terminal.includes(order.status)) {
+			throw new BadRequestException(
+				`Нельзя изменить статус: заказ уже ${order.status === OrderStatus.COMPLETED ? 'завершён' : 'отменён'}`,
+			)
+		}
+
+		// Role-based transition rules
+		const isFreelancer = order.freelancerId === userId
+		const isStudent = order.studentId === userId
+		const allowedForFreelancer: OrderStatus[] = [
+			OrderStatus.IN_PROGRESS,
+			OrderStatus.COMPLETED,
+			OrderStatus.CANCELLED,
+		]
+		const allowedForStudent: OrderStatus[] = [OrderStatus.CANCELLED]
+
+		if (isFreelancer && !allowedForFreelancer.includes(dto.status)) {
+			throw new BadRequestException('Фрилансер не может установить этот статус')
+		}
+		if (isStudent && !allowedForStudent.includes(dto.status)) {
+			throw new BadRequestException('Студент может только отменить заказ')
 		}
 
 		return this.prisma.order.update({
