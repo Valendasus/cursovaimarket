@@ -1,4 +1,6 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { Roles } from '@/common/decorators/roles.decorator'
+import { RolesGuard } from '@/common/guards/roles.guard'
 import {
 	Body,
 	Controller,
@@ -10,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { UserRole } from '@prisma/client'
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto'
 import { OrdersService } from './orders.service'
 
@@ -21,7 +24,9 @@ export class OrdersController {
 	constructor(private readonly ordersService: OrdersService) {}
 
 	@Post()
-	@ApiOperation({ summary: 'Создать заказ' })
+	@UseGuards(RolesGuard)
+	@Roles(UserRole.STUDENT)
+	@ApiOperation({ summary: 'Создать заказ (только студент)' })
 	create(@CurrentUser('id') userId: string, @Body() dto: CreateOrderDto) {
 		return this.ordersService.create(userId, dto)
 	}
