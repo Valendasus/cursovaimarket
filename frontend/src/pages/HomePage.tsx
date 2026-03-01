@@ -4,7 +4,7 @@ import ServiceCard from '@/features/services/ServiceCard'
 import { SERVICE_CATEGORIES } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
 import {
 	ArrowRight,
 	Award,
@@ -23,7 +23,7 @@ import {
 	Users,
 	Zap,
 } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useInView } from 'react-intersection-observer'
 
 // ─── Animation helpers ─────────────────────────────────────────────────────────
