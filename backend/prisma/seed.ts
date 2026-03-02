@@ -365,6 +365,30 @@ async function main() {
 		},
 	]
 
+	// Удаляем старые услуги сидовых фрилансеров (idempotent)
+	const freelancerIds = freelancers.map(f => f.id)
+	const oldPackages = await prisma.servicePackage.findMany({
+		where: { service: { freelancerId: { in: freelancerIds } } },
+		select: { id: true },
+	})
+	const oldPackageIds = oldPackages.map(p => p.id)
+	if (oldPackageIds.length) {
+		const oldOrders = await prisma.order.findMany({
+			where: { packageId: { in: oldPackageIds } },
+			select: { id: true },
+		})
+		const oldOrderIds = oldOrders.map(o => o.id)
+		if (oldOrderIds.length) {
+			await prisma.review.deleteMany({
+				where: { orderId: { in: oldOrderIds } },
+			})
+			await prisma.order.deleteMany({ where: { id: { in: oldOrderIds } } })
+		}
+	}
+	await prisma.service.deleteMany({
+		where: { freelancerId: { in: freelancerIds } },
+	})
+
 	for (const sd of servicesData) {
 		const freelancer = freelancers[sd.freelancerIdx]
 		const { freelancerIdx, packages, ...serviceFields } = sd
