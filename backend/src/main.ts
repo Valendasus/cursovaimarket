@@ -19,10 +19,12 @@ async function bootstrap() {
 	app.setGlobalPrefix('api')
 	app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' })
 
-	// CORS
+	// CORS – allow all origins
 	app.enableCors({
-		origin: config.get('CORS_ORIGIN', 'http://localhost:5173'),
+		origin: true, // mirrors request origin; '*' would break credentials
 		credentials: true,
+		methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+		allowedHeaders: ['Content-Type', 'Authorization'],
 	})
 
 	// Global exception filter
