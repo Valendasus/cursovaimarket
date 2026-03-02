@@ -46,13 +46,19 @@ export default function RegisterPage() {
 			setUser(result.user, result.accessToken, result.refreshToken)
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
-			const axiosMsg =
+			const raw =
 				err instanceof Object && 'response' in err
-					? (err as { response: { data: { message: string | string[] } } })
-							.response?.data?.message
+					? (err as { response: { data: { message: unknown } } }).response?.data
+							?.message
 					: undefined
-			const msg = axiosMsg ?? 'Ошибка регистрации'
-			setError('email', { message: Array.isArray(msg) ? msg[0] : msg })
+			const extractMsg = (v: unknown): string => {
+					if (typeof v === 'string') return v
+					if (Array.isArray(v)) return String(v[0] ?? '')
+					if (v && typeof v === 'object' && 'message' in v) return extractMsg((v as { message: unknown }).message)
+					return ''
+				}
+			const msg = extractMsg(raw) || 'Ошибка регистрации'
+			setError('email', { message: msg })
 		}
 	}
 

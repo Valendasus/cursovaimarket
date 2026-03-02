@@ -22,10 +22,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
 				? exception.getStatus()
 				: HttpStatus.INTERNAL_SERVER_ERROR
 
-		const message =
+		const rawResponse =
 			exception instanceof HttpException
 				? exception.getResponse()
 				: 'Internal server error'
+
+		// Normalize message to always be a string
+		const extractMessage = (r: unknown): string => {
+			if (typeof r === 'string') return r
+			if (Array.isArray(r)) return r[0] ?? 'Error'
+			if (r && typeof r === 'object' && 'message' in r) {
+				return extractMessage((r as { message: unknown }).message)
+			}
+			return 'Internal server error'
+		}
+
+		const message = extractMessage(rawResponse)
 
 		if (status >= 500) {
 			this.logger.error(exception)
