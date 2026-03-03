@@ -99,13 +99,8 @@ export default function FreelancerCard({
 
 					{/* CTA */}
 					<div className='flex gap-2'>
-						<Button size='sm' className='flex-1' asChild>
-							<Link
-								to='/freelancers/$freelancerId'
-								params={{ freelancerId: freelancer.id }}
-							>
-								Услуги
-							</Link>
+						<Button size='sm' className='flex-1'>
+							Услуги
 						</Button>
 						<Button
 							size='sm'
