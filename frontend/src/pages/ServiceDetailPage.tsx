@@ -298,6 +298,8 @@ export default function ServiceDetailPage() {
 												Требования к заказу
 											</label>
 											<textarea
+												id='order-requirements'
+												name='requirements'
 												value={requirements}
 												onChange={e => setRequirements(e.target.value)}
 												placeholder='Опишите тему, особые пожелания, дедлайн...'
