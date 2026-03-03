@@ -1,5 +1,6 @@
 import { createOrder } from '@/api/orders'
 import { getServiceById } from '@/api/services'
+import ReviewsSection from '@/features/reviews/ReviewsSection'
 import { formatPrice } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -235,6 +236,13 @@ export default function ServiceDetailPage() {
 								</div>
 							</Link>
 						</div>
+
+						<ReviewsSection
+							serviceId={serviceId}
+							isAuthenticated={isAuthenticated}
+							isStudent={user?.role === 'student'}
+							isOwnService={isOwnService}
+						/>
 					</motion.div>
 
 					{/* Right: Order card */}
