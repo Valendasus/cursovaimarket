@@ -110,6 +110,19 @@ export async function logoutApi() {
 	})
 }
 
+export async function updateMeApi(data: { name?: string; avatar?: string }) {
+	const { data: res } = await apiClient.patch<BackendUser>('/v1/users/me', data)
+	return mapUser(res)
+}
+
+export async function updateProfileApi(data: {
+	bio?: string
+	telegram?: string
+	specializations?: string[]
+}) {
+	await apiClient.patch('/v1/users/me/profile', data)
+}
+
 export async function getMeApi() {
 	const { data } = await apiClient.get<BackendUser>('/v1/auth/me')
 	return mapUser(data)
