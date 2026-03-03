@@ -79,6 +79,7 @@ export default function ServiceDetailPage() {
 
 	const selectedPkg = service.packages[selectedPkgIdx] ?? service.packages[0]
 	const isOwnService = user?.id === service.freelancerId
+	const isFreelancer = user?.role === 'freelancer'
 
 	return (
 		<div className='min-h-screen bg-background'>
@@ -330,6 +331,10 @@ export default function ServiceDetailPage() {
 							{isOwnService ? (
 								<p className='text-sm text-muted-foreground text-center py-2'>
 									Это ваша услуга
+								</p>
+							) : isAuthenticated && isFreelancer ? (
+								<p className='text-sm text-muted-foreground text-center py-2'>
+									Фрилансеры не могут оформлять заказы
 								</p>
 							) : isAuthenticated ? (
 								<>
