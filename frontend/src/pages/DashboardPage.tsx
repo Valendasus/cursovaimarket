@@ -1,9 +1,9 @@
 import { updateMeApi, updateProfileApi } from '@/api/auth'
 import type { Order } from '@/api/orders'
-import { getMyOrders } from '@/api/orders'
+import { getMyOrders, updateOrderStatus } from '@/api/orders'
 import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -41,41 +41,103 @@ const STATUS_COLOR: Record<string, string> = {
 	cancelled: 'bg-red-500/10 text-red-500',
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({
+	order,
+	role,
+}: {
+	order: Order
+	role: 'student' | 'freelancer' | string
+}) {
+	const queryClient = useQueryClient()
+	const { mutate: changeStatus, isPending } = useMutation({
+		mutationFn: (status: string) => updateOrderStatus(order.id, status),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+		},
+	})
+
+	const isTerminal =
+		order.status === 'completed' || order.status === 'cancelled'
+
 	return (
-		<div className='flex items-start justify-between gap-4 p-4 rounded-xl border border-border hover:bg-muted/20 transition-colors'>
-			<div className='flex-1 min-w-0'>
-				<p className='font-medium text-foreground text-sm truncate'>
-					{order.service?.title ?? 'Услуга'}
-				</p>
-				<p className='text-xs text-muted-foreground mt-0.5'>
-					Пакет: {order.package?.name ?? '—'}
-				</p>
-				<p className='text-xs text-muted-foreground flex items-center gap-1 mt-1'>
-					<Clock className='w-3 h-3' />
-					{new Date(order.createdAt).toLocaleDateString('ru-RU', {
-						day: 'numeric',
-						month: 'long',
-						year: 'numeric',
-					})}
-				</p>
+		<div className='p-4 rounded-xl border border-border hover:bg-muted/20 transition-colors'>
+			<div className='flex items-start justify-between gap-4'>
+				<div className='flex-1 min-w-0'>
+					<p className='font-medium text-foreground text-sm truncate'>
+						{order.service?.title ?? 'Услуга'}
+					</p>
+					<p className='text-xs text-muted-foreground mt-0.5'>
+						Пакет: {order.package?.name ?? '—'}
+					</p>
+					<p className='text-xs text-muted-foreground flex items-center gap-1 mt-1'>
+						<Clock className='w-3 h-3' />
+						{new Date(order.createdAt).toLocaleDateString('ru-RU', {
+							day: 'numeric',
+							month: 'long',
+							year: 'numeric',
+						})}
+					</p>
+				</div>
+				<div className='flex flex-col items-end gap-2 shrink-0'>
+					<span
+						className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLOR[order.status] ?? 'bg-muted text-muted-foreground'}`}
+					>
+						{STATUS_LABEL[order.status] ?? order.status}
+					</span>
+					<span className='text-sm font-semibold text-foreground'>
+						{order.totalPrice != null
+							? new Intl.NumberFormat('ru-RU', {
+									style: 'currency',
+									currency: 'RUB',
+									maximumFractionDigits: 0,
+								}).format(order.totalPrice)
+							: '—'}
+					</span>
+				</div>
 			</div>
-			<div className='flex flex-col items-end gap-2 shrink-0'>
-				<span
-					className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLOR[order.status] ?? 'bg-muted text-muted-foreground'}`}
-				>
-					{STATUS_LABEL[order.status] ?? order.status}
-				</span>
-				<span className='text-sm font-semibold text-foreground'>
-					{order.totalPrice != null
-						? new Intl.NumberFormat('ru-RU', {
-								style: 'currency',
-								currency: 'RUB',
-								maximumFractionDigits: 0,
-							}).format(order.totalPrice)
-						: '—'}
-				</span>
-			</div>
+
+			{/* Status actions */}
+			{!isTerminal && (
+				<div className='flex flex-wrap gap-2 mt-3 pt-3 border-t border-border/50'>
+					{role === 'freelancer' && order.status === 'pending' && (
+						<>
+							<button
+								onClick={() => changeStatus('in_progress')}
+								disabled={isPending}
+								className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Взять в работу
+							</button>
+							<button
+								onClick={() => changeStatus('cancelled')}
+								disabled={isPending}
+								className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Отклонить
+							</button>
+						</>
+					)}
+					{role === 'freelancer' && order.status === 'in_progress' && (
+						<button
+							onClick={() => changeStatus('completed')}
+							disabled={isPending}
+							className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
+						>
+							Завершить работу
+						</button>
+					)}
+					{role === 'student' &&
+						(order.status === 'pending' || order.status === 'in_progress') && (
+							<button
+								onClick={() => changeStatus('cancelled')}
+								disabled={isPending}
+								className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Отменить заказ
+							</button>
+						)}
+				</div>
+			)}
 		</div>
 	)
 }
@@ -403,7 +465,11 @@ export default function DashboardPage() {
 										) : (
 											<div className='space-y-3'>
 												{orders.slice(0, 10).map(order => (
-													<OrderCard key={order.id} order={order} />
+													<OrderCard
+														key={order.id}
+														order={order}
+														role={user.role}
+													/>
 												))}
 											</div>
 										)}
