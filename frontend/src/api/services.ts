@@ -577,3 +577,39 @@ export async function getFreelancers(
 		totalPages: Math.ceil((data.total ?? mapped.length) / limit),
 	}
 }
+
+// ─── My services (freelancer) ────────────────────────────────────────────────
+
+export async function getMyServices(freelancerId: string): Promise<Service[]> {
+	const { data } = await apiClient.get('/v1/services', {
+		params: { freelancerId, limit: 100 },
+	})
+	return (data.data ?? []).map(mapService)
+}
+
+export interface CreateServicePayload {
+	title: string
+	description: string
+	category: string // uppercase, e.g. 'MATHEMATICS'
+	level: string // uppercase, e.g. 'BACHELOR'
+	tags?: string[]
+	packages: {
+		name: string
+		price: number // in kopecks
+		deliveryDays: number
+		revisions?: number
+		description?: string
+		features?: string[]
+	}[]
+}
+
+export async function createService(
+	payload: CreateServicePayload,
+): Promise<Service> {
+	const { data } = await apiClient.post<BackendService>('/v1/services', payload)
+	return mapService(data)
+}
+
+export async function deleteService(id: string): Promise<void> {
+	await apiClient.delete(`/v1/services/${id}`)
+}
