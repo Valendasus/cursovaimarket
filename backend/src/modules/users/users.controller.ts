@@ -29,6 +29,14 @@ export class UsersController {
 		return this.usersService.findFreelancers(page, limit)
 	}
 
+	@Get('me')
+	@UseGuards(AuthGuard('jwt'))
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Мой профиль' })
+	getMe(@CurrentUser('id') userId: string) {
+		return this.usersService.findById(userId)
+	}
+
 	@Get(':id')
 	@ApiOperation({ summary: 'Профиль пользователя по ID' })
 	findOne(@Param('id') id: string) {
