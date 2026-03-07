@@ -18,6 +18,10 @@ export class OrdersService {
 			include: { service: true },
 		})
 		if (!pkg) throw new NotFoundException('Пакет не найден')
+		if (!pkg.service.isActive)
+			throw new BadRequestException('Услуга недоступна для заказа')
+		if (pkg.service.freelancerId === studentId)
+			throw new BadRequestException('Нельзя заказать собственную услугу')
 
 		const order = await this.prisma.order.create({
 			data: {

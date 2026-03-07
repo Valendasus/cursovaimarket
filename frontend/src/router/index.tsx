@@ -1,9 +1,11 @@
 import PageLoader from '@/components/common/PageLoader'
 import RootLayout from '@/components/layout/RootLayout'
+import { useAuthStore } from '@/store/authStore'
 import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	redirect,
 } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 
@@ -63,6 +65,12 @@ const registerRoute = createRoute({
 const dashboardRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/dashboard',
+	beforeLoad: () => {
+		const { isAuthenticated } = useAuthStore.getState()
+		if (!isAuthenticated) {
+			throw redirect({ to: '/login' })
+		}
+	},
 	component: wrap(DashboardPage),
 })
 const notFoundRoute = createRoute({
