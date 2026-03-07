@@ -50,10 +50,11 @@ export default function ReviewsSection({
 	const [comment, setComment] = useState('')
 	const [submitError, setSubmitError] = useState('')
 	const [submitted, setSubmitted] = useState(false)
+	const [limit, setLimit] = useState(10)
 
 	const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
-		queryKey: ['reviews', serviceId],
-		queryFn: () => getServiceReviews(serviceId),
+		queryKey: ['reviews', serviceId, limit],
+		queryFn: () => getServiceReviews(serviceId, 1, limit),
 	})
 
 	// Find completed orders for this service (to get orderId for review)
@@ -87,12 +88,14 @@ export default function ReviewsSection({
 	})
 
 	const reviews = reviewsData?.data ?? []
+	const total = reviewsData?.total ?? 0
+	const hasMore = reviews.length < total
 
 	return (
 		<div className='glass-card rounded-2xl p-6'>
 			<h2 className='font-semibold text-foreground mb-4'>
 				Отзывы
-				{reviews.length > 0 && ` (${reviewsData?.total ?? reviews.length})`}
+				{total > 0 && ` (${total})`}
 			</h2>
 
 			{/* Review form */}
@@ -141,7 +144,7 @@ export default function ReviewsSection({
 			)}
 
 			{/* Reviews list */}
-			{reviewsLoading ? (
+			{reviewsLoading && reviews.length === 0 ? (
 				<div className='space-y-3'>
 					{[0, 1].map(i => (
 						<div
@@ -194,6 +197,20 @@ export default function ReviewsSection({
 							)}
 						</div>
 					))}
+
+					{hasMore && (
+						<div className='pt-4 flex justify-center'>
+							<button
+								onClick={() => setLimit(l => l + 10)}
+								disabled={reviewsLoading}
+								className='px-5 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50 transition-colors'
+							>
+								{reviewsLoading
+									? 'Загружаем...'
+									: `Показать ещё (ещё ${total - reviews.length})`}
+							</button>
+						</div>
+					)}
 				</div>
 			)}
 		</div>

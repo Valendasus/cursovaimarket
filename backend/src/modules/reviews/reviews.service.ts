@@ -93,4 +93,49 @@ export class ReviewsService {
 		])
 		return { data, total, page, limit }
 	}
+
+	/** Отзывы, написанные пользователем (история студента) */
+	async findByAuthor(authorId: string, page = 1, limit = 20) {
+		const skip = (page - 1) * limit
+		const [data, total] = await Promise.all([
+			this.prisma.review.findMany({
+				where: { authorId },
+				include: {
+					service: {
+						select: {
+							id: true,
+							title: true,
+							freelancer: {
+								select: { id: true, name: true, avatar: true },
+							},
+						},
+					},
+				},
+				skip,
+				take: limit,
+				orderBy: { createdAt: 'desc' },
+			}),
+			this.prisma.review.count({ where: { authorId } }),
+		])
+		return { data, total, page, limit }
+	}
+
+	/** Отзывы, полученные фрилансером (по всем его услугам) */
+	async findForFreelancer(freelancerId: string, page = 1, limit = 20) {
+		const skip = (page - 1) * limit
+		const [data, total] = await Promise.all([
+			this.prisma.review.findMany({
+				where: { service: { freelancerId } },
+				include: {
+					author: { select: { id: true, name: true, avatar: true } },
+					service: { select: { id: true, title: true } },
+				},
+				skip,
+				take: limit,
+				orderBy: { createdAt: 'desc' },
+			}),
+			this.prisma.review.count({ where: { service: { freelancerId } } }),
+		])
+		return { data, total, page, limit }
+	}
 }
