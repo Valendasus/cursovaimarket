@@ -428,6 +428,15 @@ interface BackendProfile {
 	telegram?: string
 }
 
+interface BackendUser {
+	id: string
+	email?: string
+	name: string
+	avatar?: string
+	createdAt?: string
+	profile?: BackendProfile | null
+}
+
 interface BackendService {
 	id: string
 	freelancerId: string
