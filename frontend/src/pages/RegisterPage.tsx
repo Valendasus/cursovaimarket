@@ -52,11 +52,12 @@ export default function RegisterPage() {
 							?.message
 					: undefined
 			const extractMsg = (v: unknown): string => {
-					if (typeof v === 'string') return v
-					if (Array.isArray(v)) return String(v[0] ?? '')
-					if (v && typeof v === 'object' && 'message' in v) return extractMsg((v as { message: unknown }).message)
-					return ''
-				}
+				if (typeof v === 'string') return v
+				if (Array.isArray(v)) return String(v[0] ?? '')
+				if (v && typeof v === 'object' && 'message' in v)
+					return extractMsg((v as { message: unknown }).message)
+				return ''
+			}
 			const msg = extractMsg(raw) || 'Ошибка регистрации'
 			setError('email', { message: msg })
 		}

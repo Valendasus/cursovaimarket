@@ -35,12 +35,13 @@ export default function LoginPage() {
 					? (err as { response: { data: { message: unknown } } }).response?.data
 							?.message
 					: undefined
-				const extractMsg = (v: unknown): string => {
-					if (typeof v === 'string') return v
-					if (Array.isArray(v)) return String(v[0] ?? '')
-					if (v && typeof v === 'object' && 'message' in v) return extractMsg((v as { message: unknown }).message)
-					return ''
-				}
+			const extractMsg = (v: unknown): string => {
+				if (typeof v === 'string') return v
+				if (Array.isArray(v)) return String(v[0] ?? '')
+				if (v && typeof v === 'object' && 'message' in v)
+					return extractMsg((v as { message: unknown }).message)
+				return ''
+			}
 			const msg = extractMsg(raw) || 'Неверный email или пароль'
 			setError('email', { message: msg })
 		}
