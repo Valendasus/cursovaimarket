@@ -65,6 +65,11 @@ const registerRoute = createRoute({
 const dashboardRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/dashboard',
+	validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+		const result: { tab?: string } = {}
+		if (search.tab) result.tab = String(search.tab)
+		return result
+	},
 	beforeLoad: () => {
 		const { isAuthenticated } = useAuthStore.getState()
 		if (!isAuthenticated) {

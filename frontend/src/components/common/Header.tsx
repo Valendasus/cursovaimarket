@@ -126,7 +126,11 @@ export default function Header() {
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align='end' className='w-48'>
 									<DropdownMenuItem asChild>
-										<Link to='/dashboard' className='flex items-center gap-2'>
+										<Link
+											to='/dashboard'
+											search={{}}
+											className='flex items-center gap-2'
+										>
 											<LayoutDashboard className='h-4 w-4' />
 											Личный кабинет
 										</Link>
@@ -228,6 +232,7 @@ export default function Header() {
 										<Button variant='outline' className='flex-1' asChild>
 											<Link
 												to='/dashboard'
+												search={{}}
 												onClick={() => setMobileOpen(false)}
 											>
 												Кабинет

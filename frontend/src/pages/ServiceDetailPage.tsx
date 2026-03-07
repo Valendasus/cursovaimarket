@@ -274,6 +274,7 @@ export default function ServiceDetailPage() {
 									</p>
 									<Link
 										to='/dashboard'
+										search={{ tab: 'orders' }}
 										className='flex items-center gap-2 text-sm font-medium text-primary hover:underline'
 									>
 										<ShoppingBag className='w-4 h-4' />
@@ -374,10 +375,14 @@ export default function ServiceDetailPage() {
 								</Link>
 							)}
 
-							<button className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'>
+							<Link
+								to='/dashboard'
+								search={{ tab: 'messages' }}
+								className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'
+							>
 								<MessageSquare className='w-4 h-4' />
 								Написать исполнителю
-							</button>
+							</Link>
 							{service.freelancer?.telegram && (
 								<a
 									href={`https://t.me/${service.freelancer.telegram.replace('@', '')}`}

@@ -115,10 +115,14 @@ export default function FreelancerPage() {
 								</div>
 							</div>
 
-							<button className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'>
+							<Link
+								to='/dashboard'
+								search={{ tab: 'messages' }}
+								className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'
+							>
 								<MessageSquare className='w-4 h-4' />
 								Написать
-							</button>
+							</Link>
 							{freelancer.telegram && (
 								<a
 									href={`https://t.me/${freelancer.telegram.replace('@', '')}`}

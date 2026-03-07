@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/authStore'
 import type { Service, ServiceCategory, ServiceLevel } from '@/types'
 import { SERVICE_CATEGORIES, SERVICE_LEVELS } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
 	Briefcase,
@@ -1305,7 +1305,14 @@ function SettingsTab() {
 
 export default function DashboardPage() {
 	const { user, logout } = useAuthStore()
-	const [activeTab, setActiveTab] = useState<TabId>('orders')
+	const search = useSearch({ from: '/dashboard' })
+	const [activeTab, setActiveTab] = useState<TabId>(
+		(
+			['orders', 'services', 'messages', 'reviews', 'settings'] as TabId[]
+		).includes(search.tab as TabId)
+			? (search.tab as TabId)
+			: 'orders',
+	)
 
 	const { data: orders = [], isLoading: ordersLoading } = useQuery({
 		queryKey: ['my-orders'],
