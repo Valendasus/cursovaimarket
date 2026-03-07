@@ -65,11 +65,12 @@ model User {
   profile FreelancerProfile?
 
   // Relations
-  services          Service[]     @relation("FreelancerServices")
-  buyerOrders       Order[]       @relation("BuyerOrders")
-  freelancerOrders  Order[]       @relation("FreelancerOrders")
-  reviews           Review[]      @relation("AuthorReviews")
+  services          Service[]       @relation("FreelancerServices")
+  buyerOrders       Order[]         @relation("BuyerOrders")
+  freelancerOrders  Order[]         @relation("FreelancerOrders")
+  reviews           Review[]        @relation("AuthorReviews")
   refreshTokens     RefreshToken[]
+  chatMessages      ChatMessage[]
 
   @@map("users")
 }
@@ -154,6 +155,7 @@ model Order {
   student    User           @relation("BuyerOrders", fields: [studentId], references: [id])
   freelancer User           @relation("FreelancerOrders", fields: [freelancerId], references: [id])
   review     Review?
+  messages   ChatMessage[]
 
   @@map("orders")
 }
@@ -185,4 +187,19 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  orderId   String
+  senderId  String
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("chat_messages")
 }
