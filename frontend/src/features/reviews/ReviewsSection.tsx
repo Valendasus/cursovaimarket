@@ -76,6 +76,7 @@ export default function ReviewsSection({
 			setComment('')
 			queryClient.invalidateQueries({ queryKey: ['reviews', serviceId] })
 			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+			queryClient.invalidateQueries({ queryKey: ['received-reviews'] })
 		},
 		onError: (err: unknown) => {
 			const msg =

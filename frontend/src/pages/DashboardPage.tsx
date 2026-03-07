@@ -622,7 +622,7 @@ function ReviewsTab({ role }: { role: string }) {
 
 	const isLoading = isFreelancer ? receivedLoading : myLoading
 	const total = isFreelancer ? (receivedData?.total ?? 0) : (myData?.total ?? 0)
-	const totalPages = Math.ceil(total / limit)
+	const totalPages = Math.max(1, Math.ceil(total / limit))
 
 	if (isLoading) {
 		return (
