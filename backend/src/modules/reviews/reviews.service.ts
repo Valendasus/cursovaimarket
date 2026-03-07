@@ -66,7 +66,8 @@ export class ReviewsService {
 					reviewsCount: stats._count,
 				},
 			}),
-			this.prisma.freelancerProfile.update({
+			// Use updateMany to avoid P2025 if profile row is missing
+			this.prisma.freelancerProfile.updateMany({
 				where: { userId: order.freelancerId },
 				data: {
 					rating: profileStats._avg.rating ?? 0,

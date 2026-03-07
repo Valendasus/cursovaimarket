@@ -52,8 +52,6 @@ export class AuthController {
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Получить текущего пользователя' })
 	getMe(@CurrentUser() user: any) {
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { password, ...safe } = user
-		return safe
+		return user
 	}
 }

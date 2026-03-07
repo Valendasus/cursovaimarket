@@ -146,7 +146,8 @@ export class OrdersService {
 		if (dto.status === OrderStatus.COMPLETED) {
 			await Promise.all([
 				// completedOrders on freelancer profile
-				this.prisma.freelancerProfile.update({
+				// Use updateMany to avoid P2025 if profile row is missing
+				this.prisma.freelancerProfile.updateMany({
 					where: { userId: order.freelancerId },
 					data: { completedOrders: { increment: 1 } },
 				}),
