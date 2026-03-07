@@ -1,5 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service'
 import {
+	BadRequestException,
 	ConflictException,
 	ForbiddenException,
 	Injectable,
@@ -22,7 +23,7 @@ export class ReviewsService {
 		if (order.studentId !== authorId)
 			throw new ForbiddenException('Нет доступа')
 		if (order.status !== OrderStatus.COMPLETED) {
-			throw new ForbiddenException(
+			throw new BadRequestException(
 				'Можно оставить отзыв только по завершённому заказу',
 			)
 		}

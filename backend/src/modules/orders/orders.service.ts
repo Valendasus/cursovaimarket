@@ -109,10 +109,22 @@ export class OrdersService {
 		const allowedForStudent: OrderStatus[] = [OrderStatus.CANCELLED]
 
 		if (isFreelancer && !allowedForFreelancer.includes(dto.status)) {
-			throw new BadRequestException('Фрилансер не может установить этот статус')
+			throw new ForbiddenException('Фрилансер не может установить этот статус')
 		}
 		if (isStudent && !allowedForStudent.includes(dto.status)) {
-			throw new BadRequestException('Студент может только отменить заказ')
+			throw new ForbiddenException('Студент может только отменить заказ')
+		}
+
+		// Sequential transition validation
+		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+			[OrderStatus.PENDING]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+			[OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+		}
+		const allowedNext = validTransitions[order.status] ?? []
+		if (!allowedNext.includes(dto.status)) {
+			throw new BadRequestException(
+				`Переход из статуса ${order.status} в ${dto.status} недопустим`,
+			)
 		}
 
 		const updated = await this.prisma.order.update({
