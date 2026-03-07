@@ -115,7 +115,7 @@ export class OrdersService {
 			throw new BadRequestException('Студент может только отменить заказ')
 		}
 
-		return this.prisma.order.update({
+		const updated = await this.prisma.order.update({
 			where: { id },
 			data: { status: dto.status },
 			include: {
@@ -125,5 +125,23 @@ export class OrdersService {
 				freelancer: { select: { id: true, name: true } },
 			},
 		})
+
+		// When completed — increment counters
+		if (dto.status === OrderStatus.COMPLETED) {
+			await Promise.all([
+				// completedOrders on freelancer profile
+				this.prisma.freelancerProfile.update({
+					where: { userId: order.freelancerId },
+					data: { completedOrders: { increment: 1 } },
+				}),
+				// ordersCount on service
+				this.prisma.service.update({
+					where: { id: order.serviceId },
+					data: { ordersCount: { increment: 1 } },
+				}),
+			])
+		}
+
+		return updated
 	}
 }

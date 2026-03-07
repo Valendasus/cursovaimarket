@@ -50,13 +50,29 @@ export class ReviewsService {
 			_count: true,
 		})
 
-		await this.prisma.service.update({
-			where: { id: order.serviceId },
-			data: {
-				rating: stats._avg.rating ?? 0,
-				reviewsCount: stats._count,
-			},
+		// Recalculate freelancer profile rating (across ALL their services)
+		const profileStats = await this.prisma.review.aggregate({
+			where: { service: { freelancerId: order.freelancerId } },
+			_avg: { rating: true },
+			_count: true,
 		})
+
+		await Promise.all([
+			this.prisma.service.update({
+				where: { id: order.serviceId },
+				data: {
+					rating: stats._avg.rating ?? 0,
+					reviewsCount: stats._count,
+				},
+			}),
+			this.prisma.freelancerProfile.update({
+				where: { userId: order.freelancerId },
+				data: {
+					rating: profileStats._avg.rating ?? 0,
+					reviewsCount: profileStats._count,
+				},
+			}),
+		])
 
 		return review
 	}
