@@ -4,14 +4,7 @@ import { getInitials } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import {
-	ArrowLeft,
-	CheckCircle,
-	Clock,
-	MapPin,
-	MessageSquare,
-	Star,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, MapPin, Send, Star } from 'lucide-react'
 
 export default function FreelancerPage() {
 	const { freelancerId } = useParams({ strict: false }) as {
@@ -114,10 +107,17 @@ export default function FreelancerPage() {
 								</div>
 							</div>
 
-							<button className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'>
-								<MessageSquare className='w-4 h-4' />
-								Написать
-							</button>
+							{freelancer.telegram && (
+								<a
+									href={`https://t.me/${freelancer.telegram.replace('@', '')}`}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='w-full mt-5 py-2.5 rounded-xl bg-[#229ED9] text-white text-sm font-medium hover:bg-[#1a8bc4] transition-colors flex items-center justify-center gap-2'
+								>
+									<Send className='w-4 h-4' />
+									Написать в Telegram
+								</a>
+							)}
 						</div>
 
 						<div className='glass-card rounded-2xl p-5'>

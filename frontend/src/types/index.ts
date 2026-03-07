@@ -21,6 +21,7 @@ export interface FreelancerProfile extends User {
 	isVerified: boolean
 	responseTime: string // e.g. "~2 часа"
 	location?: string
+	telegram?: string
 }
 
 export interface AuthState {

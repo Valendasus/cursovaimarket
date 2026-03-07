@@ -425,15 +425,7 @@ interface BackendProfile {
 	isVerified?: boolean
 	responseTime?: string
 	location?: string
-}
-
-interface BackendUser {
-	id: string
-	email?: string
-	name: string
-	avatar?: string
-	createdAt?: string
-	profile?: BackendProfile | null
+	telegram?: string
 }
 
 interface BackendService {
@@ -483,6 +475,7 @@ function mapFreelancer(u: BackendUser): FreelancerProfile {
 		isVerified: p.isVerified ?? false,
 		responseTime: p.responseTime ?? '~24 часа',
 		location: p.location,
+		telegram: p.telegram,
 		createdAt: u.createdAt ?? new Date().toISOString(),
 	}
 }

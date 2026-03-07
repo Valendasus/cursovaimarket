@@ -11,8 +11,8 @@ import {
 	ArrowLeft,
 	CheckCircle,
 	Clock,
-	MessageSquare,
 	RotateCcw,
+	Send,
 	Shield,
 	ShoppingBag,
 	Star,
@@ -373,10 +373,17 @@ export default function ServiceDetailPage() {
 								</Link>
 							)}
 
-							<button className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'>
-								<MessageSquare className='w-4 h-4' />
-								Написать исполнителю
-							</button>
+							{service.freelancer?.telegram && (
+								<a
+									href={`https://t.me/${service.freelancer.telegram.replace('@', '')}`}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='w-full mt-3 py-3 rounded-xl bg-[#229ED9] text-white text-sm font-medium hover:bg-[#1a8bc4] transition-colors flex items-center justify-center gap-2'
+								>
+									<Send className='w-4 h-4' />
+									Написать исполнителю
+								</a>
+							)}
 
 							<div className='flex items-center gap-2 mt-4 text-xs text-muted-foreground justify-center'>
 								<Shield className='w-3.5 h-3.5' />
