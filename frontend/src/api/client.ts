@@ -73,3 +73,15 @@ apiClient.interceptors.response.use(
 )
 
 export default apiClient
+
+/** Extract a human-readable error message from an Axios error response. */
+export function extractApiError(
+	err: unknown,
+	fallback = 'Произошла ошибка',
+): string {
+	const raw = (err as { response?: { data?: { message?: unknown } } })?.response
+		?.data?.message
+	if (typeof raw === 'string') return raw
+	if (Array.isArray(raw)) return raw.filter(Boolean).join(', ') || fallback
+	return fallback
+}

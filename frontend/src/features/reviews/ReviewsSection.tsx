@@ -1,3 +1,4 @@
+import { extractApiError } from '@/api/client'
 import { getMyOrders } from '@/api/orders'
 import { createReview, getServiceReviews } from '@/api/reviews'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -79,12 +80,7 @@ export default function ReviewsSection({
 			queryClient.invalidateQueries({ queryKey: ['received-reviews'] })
 		},
 		onError: (err: unknown) => {
-			const msg =
-				(err as { response?: { data?: { message?: string } } })?.response?.data
-					?.message ?? 'Ошибка при отправке отзыва'
-			setSubmitError(
-				typeof msg === 'string' ? msg : 'Ошибка при отправке отзыва',
-			)
+			setSubmitError(extractApiError(err, 'Ошибка при отправке отзыва'))
 		},
 	})
 

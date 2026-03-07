@@ -1,4 +1,5 @@
 import { updateMeApi, updateProfileApi } from '@/api/auth'
+import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
 import { getMyOrders, updateOrderStatus } from '@/api/orders'
 import { getMyReviews, getReceivedReviews } from '@/api/reviews'
@@ -69,10 +70,15 @@ function OrderCard({
 	role: 'student' | 'freelancer' | string
 }) {
 	const queryClient = useQueryClient()
+	const [statusError, setStatusError] = useState('')
 	const { mutate: changeStatus, isPending } = useMutation({
 		mutationFn: (status: string) => updateOrderStatus(order.id, status),
 		onSuccess: () => {
+			setStatusError('')
 			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+		},
+		onError: (err: unknown) => {
+			setStatusError(extractApiError(err, 'Не удалось изменить статус'))
 		},
 	})
 
@@ -81,6 +87,9 @@ function OrderCard({
 
 	return (
 		<div className='p-4 rounded-xl border border-border hover:bg-muted/20 transition-colors'>
+			{statusError && (
+				<p className='text-xs text-destructive mb-2'>{statusError}</p>
+			)}
 			<div className='flex items-start justify-between gap-4'>
 				<div className='flex-1 min-w-0'>
 					<p className='font-medium text-foreground text-sm truncate'>
@@ -278,6 +287,9 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 			queryClient.invalidateQueries({
 				queryKey: ['my-services', freelancerId],
 			}),
+		onError: (err: unknown) => {
+			setFormError(extractApiError(err, 'Не удалось удалить услугу'))
+		},
 	})
 
 	const { mutate: submitService, isPending: creating } = useMutation({
@@ -288,12 +300,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 			resetForm()
 		},
 		onError: (err: unknown) => {
-			const msg = (
-				err as { response?: { data?: { message?: string | string[] } } }
-			)?.response?.data?.message
-			setFormError(
-				Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Ошибка при создании'),
-			)
+			setFormError(extractApiError(err, 'Ошибка при создании'))
 		},
 	})
 
@@ -860,8 +867,8 @@ function SettingsTab() {
 			updateUser({ name: name.trim() })
 			setSaved(true)
 			setTimeout(() => setSaved(false), 3000)
-		} catch {
-			setError('Не удалось сохранить изменения')
+		} catch (err: unknown) {
+			setError(extractApiError(err, 'Не удалось сохранить изменения'))
 		} finally {
 			setSaving(false)
 		}

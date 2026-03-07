@@ -1,3 +1,4 @@
+import { extractApiError } from '@/api/client'
 import { createOrder } from '@/api/orders'
 import { getServiceById } from '@/api/services'
 import ReviewsSection from '@/features/reviews/ReviewsSection'
@@ -322,9 +323,7 @@ export default function ServiceDetailPage() {
 
 							{orderError && (
 								<p className='text-xs text-destructive mb-3'>
-									{(
-										orderError as { response?: { data?: { message?: string } } }
-									)?.response?.data?.message ?? 'Ошибка при создании заказа'}
+									{extractApiError(orderError, 'Ошибка при создании заказа')}
 								</p>
 							)}
 

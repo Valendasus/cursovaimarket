@@ -1,4 +1,5 @@
 import { registerApi } from '@/api/auth'
+import { extractApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -46,19 +47,7 @@ export default function RegisterPage() {
 			setUser(result.user, result.accessToken, result.refreshToken)
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
-			const raw =
-				err instanceof Object && 'response' in err
-					? (err as { response: { data: { message: unknown } } }).response?.data
-							?.message
-					: undefined
-			const extractMsg = (v: unknown): string => {
-				if (typeof v === 'string') return v
-				if (Array.isArray(v)) return String(v[0] ?? '')
-				if (v && typeof v === 'object' && 'message' in v)
-					return extractMsg((v as { message: unknown }).message)
-				return ''
-			}
-			const msg = extractMsg(raw) || 'Ошибка регистрации'
+			const msg = extractApiError(err, 'Ошибка регистрации')
 			setError('email', { message: msg })
 		}
 	}
