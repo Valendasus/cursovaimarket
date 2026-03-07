@@ -19,9 +19,10 @@ async function bootstrap() {
 	app.setGlobalPrefix('api')
 	app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' })
 
-	// CORS – allow all origins
+	// CORS – allow configured origin (mirrors request in dev, locked in prod)
+	const corsOrigin = config.get<string>('CORS_ORIGIN', 'http://localhost:5173')
 	app.enableCors({
-		origin: true, // mirrors request origin; '*' would break credentials
+		origin: corsOrigin === '*' ? true : corsOrigin,
 		credentials: true,
 		methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
 		allowedHeaders: ['Content-Type', 'Authorization'],

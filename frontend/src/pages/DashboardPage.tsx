@@ -57,14 +57,20 @@ const tabs: {
 
 const STATUS_LABEL: Record<string, string> = {
 	pending: 'Ожидает',
+	accepted: 'Принят',
 	in_progress: 'В работе',
+	review: 'На проверке',
+	revision: 'На доработке',
 	completed: 'Завершён',
 	cancelled: 'Отменён',
 }
 
 const STATUS_COLOR: Record<string, string> = {
 	pending: 'bg-yellow-500/10 text-yellow-600',
+	accepted: 'bg-sky-500/10 text-sky-600',
 	in_progress: 'bg-blue-500/10 text-blue-600',
+	review: 'bg-purple-500/10 text-purple-600',
+	revision: 'bg-orange-500/10 text-orange-600',
 	completed: 'bg-green-500/10 text-green-600',
 	cancelled: 'bg-red-500/10 text-red-500',
 }

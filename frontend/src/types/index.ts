@@ -79,7 +79,14 @@ export interface Service {
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
-export type OrderStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+export type OrderStatus =
+	| 'pending'
+	| 'accepted'
+	| 'in_progress'
+	| 'review'
+	| 'revision'
+	| 'completed'
+	| 'cancelled'
 
 export interface Order {
 	id: string
