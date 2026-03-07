@@ -1,10 +1,13 @@
 import { updateMeApi, updateProfileApi } from '@/api/auth'
+import { getUnreadCounts } from '@/api/chat'
 import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
 import { getMyOrders, updateOrderStatus } from '@/api/orders'
 import { getMyReviews, getReceivedReviews } from '@/api/reviews'
 import type { CreateServicePayload } from '@/api/services'
 import { createService, deleteService, getMyServices } from '@/api/services'
+import ChatPane from '@/features/chat/ChatPane'
+import { useChatSocket } from '@/hooks/useChatSocket'
 import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type { Service, ServiceCategory, ServiceLevel } from '@/types'
@@ -17,16 +20,20 @@ import {
 	Check,
 	Clock,
 	LayoutDashboard,
+	Loader2,
 	LogOut,
+	MessageCircle,
 	MessageSquare,
 	Plus,
+	Send,
 	Settings,
 	ShoppingBag,
 	Star,
 	Trash2,
+	WifiOff,
 	X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type TabId = 'orders' | 'services' | 'messages' | 'reviews' | 'settings'
 
@@ -65,12 +72,18 @@ const STATUS_COLOR: Record<string, string> = {
 function OrderCard({
 	order,
 	role,
+	currentUserId,
+	unread = 0,
 }: {
 	order: Order
 	role: 'student' | 'freelancer' | string
+	currentUserId: string
+	unread?: number
 }) {
 	const queryClient = useQueryClient()
 	const [statusError, setStatusError] = useState('')
+	const [showChat, setShowChat] = useState(false)
+
 	const { mutate: changeStatus, isPending } = useMutation({
 		mutationFn: (status: string) => updateOrderStatus(order.id, status),
 		onSuccess: () => {
@@ -125,67 +138,389 @@ function OrderCard({
 				</div>
 			</div>
 
-			{/* Status actions */}
-			{!isTerminal && (
-				<div className='flex flex-wrap gap-2 mt-3 pt-3 border-t border-border/50'>
-					{role === 'freelancer' && order.status === 'pending' && (
-						<>
+			{/* Actions row: status buttons + chat toggle */}
+			<div className='flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/50'>
+				{/* Status buttons */}
+				{!isTerminal && (
+					<>
+						{role === 'freelancer' && order.status === 'pending' && (
+							<>
+								<button
+									onClick={() => changeStatus('in_progress')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Взять в работу
+								</button>
+								<button
+									onClick={() => changeStatus('cancelled')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Отклонить
+								</button>
+							</>
+						)}
+						{role === 'freelancer' && order.status === 'in_progress' && (
 							<button
-								onClick={() => changeStatus('in_progress')}
+								onClick={() => changeStatus('completed')}
 								disabled={isPending}
-								className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+								className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
 							>
-								Взять в работу
-							</button>
-							<button
-								onClick={() => changeStatus('cancelled')}
-								disabled={isPending}
-								className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
-							>
-								Отклонить
-							</button>
-						</>
-					)}
-					{role === 'freelancer' && order.status === 'in_progress' && (
-						<button
-							onClick={() => changeStatus('completed')}
-							disabled={isPending}
-							className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
-						>
-							Завершить работу
-						</button>
-					)}
-					{role === 'student' &&
-						(order.status === 'pending' || order.status === 'in_progress') && (
-							<button
-								onClick={() => changeStatus('cancelled')}
-								disabled={isPending}
-								className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
-							>
-								Отменить заказ
+								Завершить работу
 							</button>
 						)}
-				</div>
-			)}
+						{role === 'student' &&
+							(order.status === 'pending' ||
+								order.status === 'in_progress') && (
+								<button
+									onClick={() => changeStatus('cancelled')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Отменить заказ
+								</button>
+							)}
+					</>
+				)}
+
+				{/* Chat toggle — always available */}
+				<button
+					onClick={() => setShowChat(v => !v)}
+					className={`ml-auto relative text-xs px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+						showChat
+							? 'bg-primary/10 text-primary'
+							: 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80'
+					}`}
+				>
+					<MessageCircle className='w-3.5 h-3.5' />
+					Чат
+					{unread > 0 && !showChat && (
+						<span className='absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold'>
+							{unread > 9 ? '9+' : unread}
+						</span>
+					)}
+				</button>
+			</div>
+
+			{/* Inline chat */}
+			<ChatPane
+				orderId={order.id}
+				currentUserId={currentUserId}
+				isOpen={showChat}
+			/>
 		</div>
 	)
 }
 
-function PlaceholderTab({
-	icon: Icon,
-	title,
-	description,
+// ─── Messages Tab ─────────────────────────────────────────────────────────────
+
+/** Inner chat content used by MessagesTab (messages list + input) */
+function InlineChatContent({
+	orderId,
+	currentUserId,
 }: {
-	icon: React.ElementType
-	title: string
-	description: string
+	orderId: string
+	currentUserId: string
 }) {
+	const { messages, status, sendMessage, markRead } = useChatSocket({
+		orderId,
+		enabled: true,
+	})
+	const [input, setInput] = useState('')
+	const [sending, setSending] = useState(false)
+	const bottomRef = useRef<HTMLDivElement | null>(null)
+	const inputRef = useRef<HTMLTextAreaElement | null>(null)
+
+	useEffect(() => {
+		markRead()
+	}, [markRead, orderId])
+
+	useEffect(() => {
+		bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+	}, [messages])
+
+	const handleSend = async () => {
+		const trimmed = input.trim()
+		if (!trimmed || sending) return
+		setSending(true)
+		setInput('')
+		try {
+			await sendMessage(trimmed)
+		} finally {
+			setSending(false)
+			inputRef.current?.focus()
+		}
+	}
+
 	return (
-		<div className='glass-card rounded-2xl p-6'>
-			<div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
-				<Icon className='w-12 h-12 opacity-20 mb-3' />
-				<p className='text-sm font-medium text-foreground'>{title}</p>
-				<p className='text-xs text-muted-foreground mt-1'>{description}</p>
+		<>
+			{/* Status indicator */}
+			{status !== 'connected' && (
+				<div className='flex items-center gap-1.5 px-4 py-1.5 text-xs bg-muted/50 border-b border-border'>
+					{status === 'connecting' && (
+						<>
+							<Loader2 className='w-3 h-3 animate-spin text-primary' />
+							<span className='text-muted-foreground'>Подключение...</span>
+						</>
+					)}
+					{(status === 'error' || status === 'idle') && (
+						<>
+							<WifiOff className='w-3 h-3 text-destructive' />
+							<span className='text-destructive'>Нет соединения</span>
+						</>
+					)}
+				</div>
+			)}
+
+			{/* Messages */}
+			<div className='flex-1 overflow-y-auto p-4 space-y-3'>
+				{messages.length === 0 ? (
+					<div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
+						<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
+						<p className='text-xs'>Сообщений пока нет</p>
+					</div>
+				) : (
+					messages.map(msg => {
+						const isMine = msg.senderId === currentUserId
+						const time = new Date(msg.createdAt).toLocaleTimeString('ru-RU', {
+							hour: '2-digit',
+							minute: '2-digit',
+						})
+						return (
+							<div
+								key={msg.id}
+								className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
+							>
+								{!isMine && (
+									<div className='w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
+										{msg.sender.avatar ? (
+											<img
+												src={msg.sender.avatar}
+												alt={msg.sender.name}
+												className='w-full h-full object-cover'
+											/>
+										) : (
+											msg.sender.name.charAt(0).toUpperCase()
+										)}
+									</div>
+								)}
+								<div
+									className={`max-w-[70%] flex flex-col gap-0.5 ${isMine ? 'items-end' : 'items-start'}`}
+								>
+									<div
+										className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+											isMine
+												? 'bg-primary text-primary-foreground rounded-br-sm'
+												: 'bg-muted text-foreground rounded-bl-sm'
+										}`}
+									>
+										{msg.content}
+									</div>
+									<span className='text-[10px] text-muted-foreground px-1'>
+										{time}
+										{isMine && (
+											<span className='ml-1 opacity-60'>
+												{msg.isRead ? '✓✓' : '✓'}
+											</span>
+										)}
+									</span>
+								</div>
+							</div>
+						)
+					})
+				)}
+				<div ref={bottomRef} />
+			</div>
+
+			{/* Input */}
+			<div className='shrink-0 border-t border-border p-3 flex items-end gap-2'>
+				<textarea
+					ref={inputRef}
+					value={input}
+					onChange={e => setInput(e.target.value)}
+					onKeyDown={e => {
+						if (e.key === 'Enter' && !e.shiftKey) {
+							e.preventDefault()
+							void handleSend()
+						}
+					}}
+					placeholder='Напишите сообщение...'
+					rows={1}
+					maxLength={2000}
+					className='flex-1 resize-none rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[38px] max-h-20 leading-5'
+				/>
+				<button
+					onClick={() => void handleSend()}
+					disabled={!input.trim() || sending}
+					className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-all active:scale-95'
+				>
+					{sending ? (
+						<Loader2 className='w-4 h-4 animate-spin' />
+					) : (
+						<Send className='w-4 h-4' />
+					)}
+				</button>
+			</div>
+		</>
+	)
+}
+
+function MessagesTab({
+	currentUserId,
+	userRole,
+}: {
+	currentUserId: string
+	userRole: string
+}) {
+	const { data: orders = [], isLoading } = useQuery({
+		queryKey: ['my-orders'],
+		queryFn: getMyOrders,
+	})
+
+	const { data: unreadCounts = {} } = useQuery({
+		queryKey: ['unread-counts'],
+		queryFn: getUnreadCounts,
+		refetchInterval: 15000,
+	})
+
+	const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+	const selectedOrder = orders.find(o => o.id === selectedOrderId)
+
+	const counterpart = (order: Order) =>
+		userRole === 'student' ? order.freelancer : order.student
+
+	return (
+		<div className='glass-card rounded-2xl overflow-hidden'>
+			<div className='flex h-[520px]'>
+				{/* Sidebar — order list */}
+				<div className='w-64 shrink-0 border-r border-border flex flex-col'>
+					<div className='flex items-center gap-2 px-4 py-3 border-b border-border'>
+						<MessageSquare className='w-4 h-4 text-primary' />
+						<span className='text-sm font-semibold text-foreground'>
+							Сообщения
+						</span>
+					</div>
+
+					<div className='flex-1 overflow-y-auto'>
+						{isLoading ? (
+							<div className='space-y-1 p-2'>
+								{[0, 1, 2].map(i => (
+									<div
+										key={i}
+										className='h-14 rounded-xl bg-muted/50 animate-pulse'
+									/>
+								))}
+							</div>
+						) : orders.length === 0 ? (
+							<div className='flex flex-col items-center justify-center h-full text-muted-foreground p-4'>
+								<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
+								<p className='text-xs text-center'>Заказов нет</p>
+							</div>
+						) : (
+							<div className='p-2 space-y-0.5'>
+								{orders.map(order => {
+									const cp = counterpart(order)
+									const unread = unreadCounts[order.id] ?? 0
+									const isSelected = selectedOrderId === order.id
+									return (
+										<button
+											key={order.id}
+											onClick={() => setSelectedOrderId(order.id)}
+											className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+												isSelected
+													? 'bg-primary/10 text-primary'
+													: 'text-foreground hover:bg-muted/50'
+											}`}
+										>
+											{/* Avatar */}
+											<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
+												{cp?.avatar ? (
+													<img
+														src={cp.avatar}
+														alt={cp.name}
+														className='w-full h-full object-cover'
+													/>
+												) : (
+													(cp?.name ?? '?').charAt(0).toUpperCase()
+												)}
+											</div>
+											<div className='flex-1 min-w-0'>
+												<p className='text-xs font-medium truncate'>
+													{cp?.name ?? 'Пользователь'}
+												</p>
+												<p className='text-[10px] text-muted-foreground truncate'>
+													{order.service?.title ?? 'Услуга'}
+												</p>
+											</div>
+											{unread > 0 && (
+												<span className='shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold'>
+													{unread > 9 ? '9+' : unread}
+												</span>
+											)}
+										</button>
+									)
+								})}
+							</div>
+						)}
+					</div>
+				</div>
+
+				{/* Chat area */}
+				<div className='flex-1 flex flex-col min-w-0'>
+					{selectedOrder ? (
+						<>
+							{/* Chat header */}
+							<div className='flex items-center gap-3 px-4 py-3 border-b border-border shrink-0'>
+								<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden shrink-0'>
+									{(() => {
+										const cp = counterpart(selectedOrder)
+										return cp?.avatar ? (
+											<img
+												src={cp.avatar}
+												alt={cp.name}
+												className='w-full h-full object-cover'
+											/>
+										) : (
+											(cp?.name ?? '?').charAt(0).toUpperCase()
+										)
+									})()}
+								</div>
+								<div>
+									<p className='text-sm font-medium text-foreground'>
+										{counterpart(selectedOrder)?.name ?? 'Пользователь'}
+									</p>
+									<p className='text-xs text-muted-foreground'>
+										{selectedOrder.service?.title}
+										{' · '}
+										<span
+											className={`${STATUS_COLOR[selectedOrder.status]?.split(' ')[1] ?? ''}`}
+										>
+											{STATUS_LABEL[selectedOrder.status] ??
+												selectedOrder.status}
+										</span>
+									</p>
+								</div>
+							</div>
+
+							{/* Messages + Input — using ChatPane internals */}
+							<InlineChatContent
+								orderId={selectedOrder.id}
+								currentUserId={currentUserId}
+							/>
+						</>
+					) : (
+						<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground'>
+							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
+							<p className='text-sm font-medium text-foreground'>
+								Выберите диалог
+							</p>
+							<p className='text-xs mt-1'>
+								Чат по каждому заказу доступен слева
+							</p>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	)
@@ -972,6 +1307,13 @@ export default function DashboardPage() {
 		enabled: !!user,
 	})
 
+	const { data: unreadCounts = {} } = useQuery({
+		queryKey: ['unread-counts'],
+		queryFn: getUnreadCounts,
+		enabled: !!user,
+		refetchInterval: 20000,
+	})
+
 	const activeCount = orders.filter(
 		o => o.status === 'pending' || o.status === 'in_progress',
 	).length
@@ -1146,6 +1488,8 @@ export default function DashboardPage() {
 														key={order.id}
 														order={order}
 														role={user.role}
+														currentUserId={user.id}
+														unread={unreadCounts[order.id] ?? 0}
 													/>
 												))}
 											</div>
@@ -1174,11 +1518,7 @@ export default function DashboardPage() {
 									exit={{ opacity: 0, y: -8 }}
 									transition={{ duration: 0.2 }}
 								>
-									<PlaceholderTab
-										icon={MessageSquare}
-										title='Сообщения'
-										description='Чат с исполнителями появится в следующей версии'
-									/>
+									<MessagesTab currentUserId={user.id} userRole={user.role} />
 								</motion.div>
 							)}
 
