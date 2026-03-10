@@ -24,7 +24,7 @@ export default function ServicesPage() {
 		'all',
 	)
 	const [activeLevel, setActiveLevel] = useState<ServiceLevel | 'all'>('all')
-	const [showFilters, setShowFilters] = useState(false)
+	const [showFilters, setShowFilters] = useState(true)
 
 	const { data, isLoading } = useQuery({
 		queryKey: ['services', activeCategory, activeLevel],
@@ -83,26 +83,29 @@ export default function ServicesPage() {
 						)}
 					</div>
 					<button
-						onClick={() => setShowFilters(!showFilters)}
-						className='flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors'
+						onClick={() => setShowFilters(v => !v)}
+						className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+							showFilters
+								? 'border-primary bg-primary/10 text-primary'
+								: 'border-border text-foreground hover:bg-muted'
+						}`}
 					>
 						<SlidersHorizontal className='w-4 h-4' />
 						Фильтры
 					</button>
 				</div>
 
-				<div className='grid lg:grid-cols-[240px_1fr] gap-6'>
+				<div
+					className={`grid gap-6 ${showFilters ? 'lg:grid-cols-[240px_1fr]' : ''}`}
+				>
 					{/* Filters sidebar */}
 					<motion.aside
 						initial={false}
 						animate={{
-							opacity:
-								showFilters ||
-								(typeof window !== 'undefined' && window.innerWidth >= 1024)
-									? 1
-									: 0,
+							opacity: showFilters ? 1 : 0,
+							width: showFilters ? 'auto' : 0,
 						}}
-						className={`space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}
+						className={`space-y-6 overflow-hidden ${showFilters ? 'block' : 'hidden'}`}
 					>
 						<div className='glass-card rounded-2xl p-5'>
 							<h3 className='font-semibold text-foreground mb-3'>Категория</h3>
