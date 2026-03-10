@@ -4,7 +4,7 @@ import { getServiceById } from '@/api/services'
 import ReviewsSection from '@/features/reviews/ReviewsSection'
 import { formatPrice } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -23,6 +23,7 @@ import { useState } from 'react'
 export default function ServiceDetailPage() {
 	const { serviceId } = useParams({ strict: false }) as { serviceId: string }
 	const { isAuthenticated, user } = useAuthStore()
+	const queryClient = useQueryClient()
 	const [selectedPkgIdx, setSelectedPkgIdx] = useState(0)
 	const [requirements, setRequirements] = useState('')
 	const [showOrderForm, setShowOrderForm] = useState(false)
@@ -48,6 +49,7 @@ export default function ServiceDetailPage() {
 		onSuccess: () => {
 			setOrderSuccess(true)
 			setShowOrderForm(false)
+			void queryClient.invalidateQueries({ queryKey: ['my-orders'] })
 		},
 	})
 
