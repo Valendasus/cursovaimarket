@@ -1,18 +1,25 @@
-import type { ChatMessage } from '@/api/chat'
+import type { DirectMessage } from '@/api/chat'
 import { useChatSocket } from '@/hooks/useChatSocket'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2, MessageCircle, Send, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 interface ChatPaneProps {
-	orderId: string
+	/** Conversation id (userA↔userB pair, created automatically) */
+	conversationId: string
 	currentUserId: string
 	isOpen: boolean
 	/** Called when the pane becomes visible so we can mark messages as read */
 	onOpen?: () => void
 }
 
-function MessageBubble({ msg, isMine }: { msg: ChatMessage; isMine: boolean }) {
+function MessageBubble({
+	msg,
+	isMine,
+}: {
+	msg: DirectMessage
+	isMine: boolean
+}) {
 	const time = new Date(msg.createdAt).toLocaleTimeString('ru-RU', {
 		hour: '2-digit',
 		minute: '2-digit',
@@ -97,7 +104,7 @@ function StatusBar({ status }: { status: string }) {
 }
 
 export default function ChatPane({
-	orderId,
+	conversationId,
 	currentUserId,
 	isOpen,
 	onOpen,
@@ -108,7 +115,7 @@ export default function ChatPane({
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 
 	const { messages, status, sendMessage, markRead } = useChatSocket({
-		orderId,
+		conversationId,
 		enabled: isOpen,
 	})
 
@@ -163,7 +170,7 @@ export default function ChatPane({
 						<div className='flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30'>
 							<MessageCircle className='w-3.5 h-3.5 text-primary' />
 							<span className='text-xs font-medium text-foreground'>
-								Чат по заказу
+								Личные сообщения
 							</span>
 							{status === 'connected' && (
 								<span className='ml-auto flex items-center gap-1 text-[10px] text-green-600'>
@@ -181,7 +188,7 @@ export default function ChatPane({
 							{messages.length === 0 ? (
 								<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground py-8'>
 									<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
-									<p className='text-xs'>Начните общение по заказу</p>
+									<p className='text-xs'>Начните общение</p>
 								</div>
 							) : (
 								messages.map(msg => (
