@@ -1,6 +1,7 @@
 import { getFreelancerById, getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
 import { getInitials } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
@@ -18,6 +19,7 @@ export default function FreelancerPage() {
 	const { freelancerId } = useParams({ strict: false }) as {
 		freelancerId: string
 	}
+	const { user } = useAuthStore()
 
 	const { data: freelancer, isLoading: loadingFreelancer } = useQuery({
 		queryKey: ['freelancer', freelancerId],
@@ -115,14 +117,16 @@ export default function FreelancerPage() {
 								</div>
 							</div>
 
-							<Link
-								to='/dashboard'
-								search={{ tab: 'messages', partnerId: freelancer.id }}
-								className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'
-							>
-								<MessageSquare className='w-4 h-4' />
-								Написать
-							</Link>
+							{user?.id !== freelancer.id && (
+								<Link
+									to='/dashboard'
+									search={{ tab: 'messages', partnerId: freelancer.id }}
+									className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'
+								>
+									<MessageSquare className='w-4 h-4' />
+									Написать
+								</Link>
+							)}
 							{freelancer.telegram && (
 								<a
 									href={`https://t.me/${freelancer.telegram.replace('@', '')}`}

@@ -392,14 +392,16 @@ export default function ServiceDetailPage() {
 								</Link>
 							)}
 
-							<Link
-								to='/dashboard'
-								search={{ tab: 'messages', partnerId: service.freelancerId }}
-								className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'
-							>
-								<MessageSquare className='w-4 h-4' />
-								Написать исполнителю
-							</Link>
+							{!isOwnService && (
+								<Link
+									to='/dashboard'
+									search={{ tab: 'messages', partnerId: service.freelancerId }}
+									className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'
+								>
+									<MessageSquare className='w-4 h-4' />
+									Написать исполнителю
+								</Link>
+							)}
 							{service.freelancer?.telegram && (
 								<a
 									href={`https://t.me/${service.freelancer.telegram.replace('@', '')}`}
