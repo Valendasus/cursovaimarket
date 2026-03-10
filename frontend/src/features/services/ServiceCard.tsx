@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { CATEGORY_THEME } from '@/lib/categoryTheme'
 import { formatPrice, getInitials, truncate } from '@/lib/utils'
 import type { Service } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
@@ -14,6 +15,7 @@ interface ServiceCardProps {
 
 export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
 	const basePackage = service.packages[0]
+	const theme = CATEGORY_THEME[service.category] ?? CATEGORY_THEME.other
 
 	return (
 		<motion.div
@@ -36,8 +38,12 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
 								className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'
 							/>
 						) : (
-							<div className='w-full h-full bg-gradient-to-br from-brand-500/20 to-purple-500/20 flex items-center justify-center'>
-								<span className='text-4xl opacity-30'>📚</span>
+							<div
+								className={`w-full h-full bg-gradient-to-br ${theme.gradient} flex items-center justify-center`}
+							>
+								<span className='text-5xl opacity-40 select-none'>
+									{theme.emoji}
+								</span>
 							</div>
 						)}
 

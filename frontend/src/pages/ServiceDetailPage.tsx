@@ -2,6 +2,7 @@ import { extractApiError } from '@/api/client'
 import { createOrder } from '@/api/orders'
 import { getServiceById } from '@/api/services'
 import ReviewsSection from '@/features/reviews/ReviewsSection'
+import { CATEGORY_THEME } from '@/lib/categoryTheme'
 import { formatPrice } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -127,15 +128,29 @@ export default function ServiceDetailPage() {
 							</div>
 						</div>
 
-						{service.thumbnail && (
-							<div className='aspect-video rounded-2xl overflow-hidden bg-muted'>
+						<div className='aspect-video rounded-2xl overflow-hidden bg-muted'>
+							{service.thumbnail ? (
 								<img
 									src={service.thumbnail}
 									alt={service.title}
 									className='w-full h-full object-cover'
 								/>
-							</div>
-						)}
+							) : (
+								<div
+									className={`w-full h-full bg-gradient-to-br ${
+										(CATEGORY_THEME[service.category] ?? CATEGORY_THEME.other)
+											.gradient
+									} flex items-center justify-center`}
+								>
+									<span className='text-8xl opacity-30 select-none'>
+										{
+											(CATEGORY_THEME[service.category] ?? CATEGORY_THEME.other)
+												.emoji
+										}
+									</span>
+								</div>
+							)}
+						</div>
 
 						<div className='glass-card rounded-2xl p-6'>
 							<h2 className='font-semibold text-foreground mb-3'>Описание</h2>
