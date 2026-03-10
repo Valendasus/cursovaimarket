@@ -1182,7 +1182,7 @@ function SettingsTab() {
 	const handleSave = async (e: React.FormEvent) => {
 		e.preventDefault()
 		if (!name.trim()) {
-			setError('Имя не может быть пустым')
+			setError('Никнейм не может быть пустым')
 			return
 		}
 		setError('')
@@ -1214,7 +1214,7 @@ function SettingsTab() {
 						htmlFor='settings-name'
 						className='block text-sm font-medium text-foreground mb-1.5'
 					>
-						Имя
+						Никнейм
 					</label>
 					<input
 						id='settings-name'
@@ -1223,7 +1223,7 @@ function SettingsTab() {
 						value={name}
 						onChange={e => setName(e.target.value)}
 						className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-						placeholder='Ваше имя'
+						placeholder='Ваш никнейм'
 					/>
 				</div>
 

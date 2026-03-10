@@ -49,7 +49,7 @@ export class UsersService {
 			})
 			if (taken && taken.id !== userId) {
 				throw new ConflictException(
-					'Пользователь с таким именем уже существует',
+					'Пользователь с таким никнеймом уже существует',
 				)
 			}
 		}

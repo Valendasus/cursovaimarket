@@ -8,7 +8,10 @@ import {
 } from 'class-validator'
 
 export class UpdateUserDto {
-	@ApiPropertyOptional({ example: 'Иван Иванов' })
+	@ApiPropertyOptional({
+		example: 'ivan_ivanov',
+		description: 'Никнейм пользователя',
+	})
 	@IsOptional()
 	@IsString()
 	name?: string

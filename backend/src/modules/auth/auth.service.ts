@@ -33,7 +33,9 @@ export class AuthService {
 			where: { name: dto.name },
 		})
 		if (existingName) {
-			throw new ConflictException('Пользователь с таким именем уже существует')
+			throw new ConflictException(
+				'Пользователь с таким никнеймом уже существует',
+			)
 		}
 
 		const hashedPassword = await bcrypt.hash(dto.password, 10)
@@ -51,8 +53,16 @@ export class AuthService {
 			include: { profile: true },
 		})
 
-		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
-		const refreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
+		const accessToken = await this.generateAccessToken(
+			user.id,
+			user.email,
+			user.role,
+		)
+		const refreshToken = await this.generateRefreshToken(
+			user.id,
+			user.email,
+			user.role,
+		)
 
 		return { user: this.sanitizeUser(user), accessToken, refreshToken }
 	}
@@ -69,8 +79,16 @@ export class AuthService {
 			throw new UnauthorizedException('Неверный email или пароль')
 		}
 
-		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
-		const refreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
+		const accessToken = await this.generateAccessToken(
+			user.id,
+			user.email,
+			user.role,
+		)
+		const refreshToken = await this.generateRefreshToken(
+			user.id,
+			user.email,
+			user.role,
+		)
 
 		return { user: this.sanitizeUser(user), accessToken, refreshToken }
 	}
@@ -97,10 +115,22 @@ export class AuthService {
 			throw new UnauthorizedException('Пользователь не найден')
 		}
 
-		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
-		const newRefreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
+		const accessToken = await this.generateAccessToken(
+			user.id,
+			user.email,
+			user.role,
+		)
+		const newRefreshToken = await this.generateRefreshToken(
+			user.id,
+			user.email,
+			user.role,
+		)
 
-		return { user: this.sanitizeUser(user), accessToken, refreshToken: newRefreshToken }
+		return {
+			user: this.sanitizeUser(user),
+			accessToken,
+			refreshToken: newRefreshToken,
+		}
 	}
 
 	// ─── Logout ────────────────────────────────────────────────────────────────
@@ -111,7 +141,11 @@ export class AuthService {
 
 	// ─── Helpers ───────────────────────────────────────────────────────────────
 
-	private async generateAccessToken(userId: string, email: string, role: string) {
+	private async generateAccessToken(
+		userId: string,
+		email: string,
+		role: string,
+	) {
 		return this.jwt.signAsync(
 			{ sub: userId, email, role, jti: randomUUID() },
 			{
@@ -121,7 +155,11 @@ export class AuthService {
 		)
 	}
 
-	private async generateRefreshToken(userId: string, email: string, role: string) {
+	private async generateRefreshToken(
+		userId: string,
+		email: string,
+		role: string,
+	) {
 		return this.jwt.signAsync(
 			{ sub: userId, email, role, jti: randomUUID() },
 			{

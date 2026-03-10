@@ -9,7 +9,7 @@ import {
 } from 'class-validator'
 
 export class RegisterDto {
-	@ApiProperty({ example: 'Иван Иванов' })
+	@ApiProperty({ example: 'ivan_ivanov', description: 'Никнейм пользователя' })
 	@IsString()
 	@IsNotEmpty()
 	name: string
