@@ -64,7 +64,7 @@ export default function FreelancerPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
-			<div className='container-custom py-10'>
+			<div className='container-custom pt-24 pb-10'>
 				<Link
 					to='/services'
 					className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors'

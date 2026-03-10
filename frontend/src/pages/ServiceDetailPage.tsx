@@ -55,7 +55,7 @@ export default function ServiceDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className='min-h-screen bg-background container-custom py-10'>
+			<div className='min-h-screen bg-background container-custom pt-24 pb-10'>
 				<div className='grid lg:grid-cols-[1fr_360px] gap-8'>
 					<div className='space-y-4'>
 						<div className='h-8 w-3/4 bg-muted/50 rounded-xl animate-pulse' />
@@ -87,7 +87,7 @@ export default function ServiceDetailPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
-			<div className='container-custom py-10'>
+			<div className='container-custom pt-24 pb-10'>
 				<Link
 					to='/services'
 					className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors'
