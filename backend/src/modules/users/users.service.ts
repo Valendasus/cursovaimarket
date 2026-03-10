@@ -88,16 +88,23 @@ export class UsersService {
 		}
 
 		// Switch role; if becoming FREELANCER — ensure profile exists
-		const updated = await this.prisma.user.update({
-			where: { id: userId },
-			data: {
-				role: dto.role,
-				...(dto.role === UserRole.FREELANCER && !user.profile
-					? { profile: { create: {} } }
-					: {}),
-			},
-			include: { profile: true },
-		})
+		// Toggle service visibility based on new role
+		const [updated] = await this.prisma.$transaction([
+			this.prisma.user.update({
+				where: { id: userId },
+				data: {
+					role: dto.role,
+					...(dto.role === UserRole.FREELANCER && !user.profile
+						? { profile: { create: {} } }
+						: {}),
+				},
+				include: { profile: true },
+			}),
+			this.prisma.service.updateMany({
+				where: { freelancerId: userId },
+				data: { isActive: dto.role === UserRole.FREELANCER },
+			}),
+		])
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safe } = updated
