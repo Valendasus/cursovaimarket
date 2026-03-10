@@ -20,7 +20,7 @@ import {
 	User,
 	X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const navLinks = [
 	{ label: 'Услуги', href: '/services', isRoute: true },
@@ -35,19 +35,35 @@ const navLinks = [
 
 export default function Header() {
 	const [isScrolled, setIsScrolled] = useState(false)
+	const [isVisible, setIsVisible] = useState(true)
 	const [mobileOpen, setMobileOpen] = useState(false)
+	const lastScrollY = useRef(0)
 	const { user, isAuthenticated, logout } = useAuthStore()
 
 	useEffect(() => {
-		const handleScroll = () => setIsScrolled(window.scrollY > 20)
+		const handleScroll = () => {
+			const currentY = window.scrollY
+			setIsScrolled(currentY > 20)
+			if (currentY < 10) {
+				setIsVisible(true)
+			} else if (currentY > lastScrollY.current + 6) {
+				setIsVisible(false)
+				setMobileOpen(false)
+			} else if (currentY < lastScrollY.current - 4) {
+				setIsVisible(true)
+			}
+			lastScrollY.current = currentY
+		}
 		window.addEventListener('scroll', handleScroll, { passive: true })
 		return () => window.removeEventListener('scroll', handleScroll)
 	}, [])
 
 	return (
-		<header
+		<motion.header
+			animate={{ y: isVisible ? 0 : '-100%' }}
+			transition={{ duration: 0.25, ease: 'easeInOut' }}
 			className={cn(
-				'fixed inset-x-0 top-0 z-50 transition-all duration-300',
+				'fixed inset-x-0 top-0 z-50 transition-colors duration-300',
 				isScrolled
 					? 'bg-background/90 backdrop-blur-xl border-b border-border shadow-sm'
 					: 'bg-transparent',
@@ -261,6 +277,6 @@ export default function Header() {
 					</motion.div>
 				)}
 			</AnimatePresence>
-		</header>
+		</motion.header>
 	)
 }
