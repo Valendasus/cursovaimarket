@@ -1191,7 +1191,9 @@ function SettingsTab() {
 		setRoleError('')
 		try {
 			const updated = await switchRoleApi(targetRole)
-			updateUser({ role: (updated as { role: string }).role as 'student' | 'freelancer' })
+			updateUser({
+				role: (updated as { role: string }).role as 'student' | 'freelancer',
+			})
 			setRoleConfirm(false)
 			// Reload so sidebar tabs and all role-dependent UI refresh
 			window.location.href = '/dashboard'
@@ -1313,58 +1315,66 @@ function SettingsTab() {
 				</button>
 			</form>
 
-		{/* Role switch section */}
-		<div className='mt-8 pt-6 border-t border-border'>
-			<h3 className='font-semibold text-foreground mb-1'>Роль аккаунта</h3>
-			<p className='text-sm text-muted-foreground mb-4'>
-				Сейчас вы{' '}
-				<span className='font-medium text-foreground'>
-					{isFreelancer ? 'Исполнитель' : 'Заказчик'}
-				</span>
-				. Вы можете переключиться на роль{' '}
-				<span className='font-medium text-foreground'>{targetRoleLabel}</span>.
-			</p>
+			{/* Role switch section */}
+			<div className='mt-8 pt-6 border-t border-border'>
+				<h3 className='font-semibold text-foreground mb-1'>Роль аккаунта</h3>
+				<p className='text-sm text-muted-foreground mb-4'>
+					Сейчас вы{' '}
+					<span className='font-medium text-foreground'>
+						{isFreelancer ? 'Исполнитель' : 'Заказчик'}
+					</span>
+					. Вы можете переключиться на роль{' '}
+					<span className='font-medium text-foreground'>{targetRoleLabel}</span>
+					.
+				</p>
 
-			{!roleConfirm ? (
-				<button
-					type='button'
-					onClick={() => setRoleConfirm(true)}
-					className='px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors'
-				>
-					Сменить роль на «{targetRoleLabel}»
-				</button>
-			) : (
-				<div className='p-4 rounded-xl border border-amber-500/40 bg-amber-500/5 space-y-3'>
-					<p className='text-sm text-foreground'>
-						⚠️{' '}
-						{isFreelancer
-							? 'После смены роли ваши услуги будут недоступны для новых заказов. Профиль исполнителя сохранится — вы сможете вернуться обратно.'
-							: 'После смены роли вы сможете создавать услуги и принимать заказы как исполнитель.'}
-					</p>
-					{roleError && (
-						<p className='text-xs text-destructive'>{roleError}</p>
-					)}
-					<div className='flex gap-2'>
-						<button
-							type='button'
-							onClick={handleSwitchRole}
-							disabled={roleSwitching}
-							className='px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
-						>
-							{roleSwitching ? 'Переключаем...' : `Да, стать ${targetRoleLabel}`}
-						</button>
-						<button
-							type='button'
-							onClick={() => { setRoleConfirm(false); setRoleError('') }}
-							disabled={roleSwitching}
-							className='px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors'
-						>
-							Отмена
-						</button>
+				{!roleConfirm ? (
+					<button
+						type='button'
+						onClick={() => setRoleConfirm(true)}
+						className='px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors'
+					>
+						Сменить роль на «{targetRoleLabel}»
+					</button>
+				) : (
+					<div className='p-4 rounded-xl border border-amber-500/40 bg-amber-500/5 space-y-3'>
+						<p className='text-sm text-foreground'>
+							⚠️{' '}
+							{isFreelancer
+								? 'После смены роли ваши услуги будут недоступны для новых заказов. Профиль исполнителя сохранится — вы сможете вернуться обратно.'
+								: 'После смены роли вы сможете создавать услуги и принимать заказы как исполнитель.'}
+						</p>
+						{roleError && (
+							<p className='text-xs text-destructive'>{roleError}</p>
+						)}
+						<div className='flex gap-2'>
+							<button
+								type='button'
+								onClick={handleSwitchRole}
+								disabled={roleSwitching}
+								className='px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
+							>
+								{roleSwitching
+									? 'Переключаем...'
+									: `Да, стать ${targetRoleLabel}`}
+							</button>
+							<button
+								type='button'
+								onClick={() => {
+									setRoleConfirm(false)
+									setRoleError('')
+								}}
+								disabled={roleSwitching}
+								className='px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors'
+							>
+								Отмена
+							</button>
+						</div>
 					</div>
-				</div>
-			)}
+				)}
+			</div>
 		</div>
+	)
 }
 
 export default function DashboardPage() {
