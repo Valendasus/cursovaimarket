@@ -1,5 +1,9 @@
 import { PrismaService } from '@/prisma/prisma.service'
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+	ConflictException,
+	Injectable,
+	NotFoundException,
+} from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 import { UpdateProfileDto, UpdateUserDto } from './dto/update-user.dto'
 
@@ -39,6 +43,16 @@ export class UsersService {
 	}
 
 	async updateMe(userId: string, dto: UpdateUserDto) {
+		if (dto.name) {
+			const taken = await this.prisma.user.findUnique({
+				where: { name: dto.name },
+			})
+			if (taken && taken.id !== userId) {
+				throw new ConflictException(
+					'Пользователь с таким именем уже существует',
+				)
+			}
+		}
 		const user = await this.prisma.user.update({
 			where: { id: userId },
 			data: dto,

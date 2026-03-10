@@ -28,6 +28,14 @@ export class AuthService {
 			throw new ConflictException('Пользователь с таким email уже существует')
 		}
 
+		// Check if name is taken
+		const existingName = await this.prisma.user.findUnique({
+			where: { name: dto.name },
+		})
+		if (existingName) {
+			throw new ConflictException('Пользователь с таким именем уже существует')
+		}
+
 		const hashedPassword = await bcrypt.hash(dto.password, 10)
 
 		const user = await this.prisma.user.create({

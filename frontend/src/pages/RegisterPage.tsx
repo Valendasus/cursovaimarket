@@ -48,7 +48,11 @@ export default function RegisterPage() {
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Ошибка регистрации')
-			setError('email', { message: msg })
+			if (msg.includes('именем')) {
+				setError('name', { message: msg })
+			} else {
+				setError('email', { message: msg })
+			}
 		}
 	}
 
