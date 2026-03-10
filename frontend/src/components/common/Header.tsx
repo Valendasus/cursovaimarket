@@ -17,7 +17,6 @@ import {
 	LayoutDashboard,
 	LogOut,
 	Menu,
-	User,
 	X,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -149,16 +148,6 @@ export default function Header() {
 										>
 											<LayoutDashboard className='h-4 w-4' />
 											Личный кабинет
-										</Link>
-									</DropdownMenuItem>
-									<DropdownMenuItem asChild>
-										<Link
-											to='/freelancers/$freelancerId'
-											params={{ freelancerId: user.id }}
-											className='flex items-center gap-2'
-										>
-											<User className='h-4 w-4' />
-											Мой профиль
 										</Link>
 									</DropdownMenuItem>
 									<DropdownMenuSeparator />
