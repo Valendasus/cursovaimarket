@@ -123,7 +123,7 @@ export function useChatSocket({
 			socket.off('connect_error', onError)
 			socket.off('disconnect', onDisconnect)
 		}
-	}, [conversationId, token, enabled])
+	}, [conversationId, token, enabled, queryClient])
 
 	useEffect(() => {
 		return () => {
