@@ -544,6 +544,23 @@ function MessagesTab({
 								currentUserId={currentUserId}
 							/>
 						</>
+					) : initialPartnerId && !isLoading ? (
+						<div className='flex-1 flex flex-col items-center justify-center text-center p-8'>
+							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
+							<p className='text-sm font-semibold text-foreground mb-1'>
+								Нет совместных заказов
+							</p>
+							<p className='text-xs text-muted-foreground max-w-[200px]'>
+								Чтобы написать исполнителю, сначала оформите заказ на одну из
+								его услуг
+							</p>
+							<Link
+								to='/services'
+								className='mt-4 text-xs text-primary hover:underline'
+							>
+								Найти услуги →
+							</Link>
+						</div>
 					) : (
 						<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground'>
 							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
