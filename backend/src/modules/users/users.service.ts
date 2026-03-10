@@ -1,11 +1,16 @@
 import { PrismaService } from '@/prisma/prisma.service'
 import {
+	BadRequestException,
 	ConflictException,
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
-import { UpdateProfileDto, UpdateUserDto } from './dto/update-user.dto'
+import {
+	SwitchRoleDto,
+	UpdateProfileDto,
+	UpdateUserDto,
+} from './dto/update-user.dto'
 
 @Injectable()
 export class UsersService {
@@ -70,5 +75,32 @@ export class UsersService {
 			update: dto,
 		})
 		return profile
+	}
+
+	async switchRole(userId: string, dto: SwitchRoleDto) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			include: { profile: true },
+		})
+		if (!user) throw new NotFoundException('Пользователь не найден')
+		if (user.role === dto.role) {
+			throw new BadRequestException('У вас уже установлена эта роль')
+		}
+
+		// Switch role; if becoming FREELANCER — ensure profile exists
+		const updated = await this.prisma.user.update({
+			where: { id: userId },
+			data: {
+				role: dto.role,
+				...(dto.role === UserRole.FREELANCER && !user.profile
+					? { profile: { create: {} } }
+					: {}),
+			},
+			include: { profile: true },
+		})
+
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { password, ...safe } = updated
+		return safe
 	}
 }

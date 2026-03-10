@@ -15,7 +15,11 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
-import { UpdateProfileDto, UpdateUserDto } from './dto/update-user.dto'
+import {
+	SwitchRoleDto,
+	UpdateProfileDto,
+	UpdateUserDto,
+} from './dto/update-user.dto'
 import { UsersService } from './users.service'
 
 @ApiTags('Users')
@@ -64,5 +68,13 @@ export class UsersController {
 		@Body() dto: UpdateProfileDto,
 	) {
 		return this.usersService.updateProfile(userId, dto)
+	}
+
+	@Patch('me/role')
+	@UseGuards(AuthGuard('jwt'))
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Сменить роль (заказчик ↔ исполнитель)' })
+	switchRole(@CurrentUser('id') userId: string, @Body() dto: SwitchRoleDto) {
+		return this.usersService.switchRole(userId, dto)
 	}
 }

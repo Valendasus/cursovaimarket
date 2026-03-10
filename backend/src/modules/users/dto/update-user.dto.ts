@@ -1,6 +1,8 @@
-import { ApiPropertyOptional } from '@nestjs/swagger'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { UserRole } from '@prisma/client'
 import {
 	IsArray,
+	IsEnum,
 	IsOptional,
 	IsString,
 	IsUrl,
@@ -39,4 +41,10 @@ export class UpdateProfileDto {
 	@IsArray()
 	@IsString({ each: true })
 	specializations?: string[]
+}
+
+export class SwitchRoleDto {
+	@ApiProperty({ enum: UserRole, description: 'Целевая роль' })
+	@IsEnum(UserRole)
+	role: UserRole
 }

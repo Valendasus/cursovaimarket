@@ -111,3 +111,11 @@ export async function getMeApi() {
 	const { data } = await apiClient.get<BackendUser>('/v1/auth/me')
 	return mapUser(data)
 }
+
+export async function switchRoleApi(role: 'STUDENT' | 'FREELANCER') {
+	const { data: res } = await apiClient.patch<BackendUser>(
+		'/v1/users/me/role',
+		{ role },
+	)
+	return mapUser(res)
+}
