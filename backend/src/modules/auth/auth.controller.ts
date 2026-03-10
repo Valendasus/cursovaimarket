@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { Throttle } from '@nestjs/throttler'
 import type { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { LoginDto, RegisterDto } from './dto/auth.dto'
@@ -39,19 +40,29 @@ function clearRefreshCookie(res: Response) {
 export class AuthController {
 	constructor(private readonly authService: AuthService) {}
 
+	@Throttle({ default: { limit: 5, ttl: 60_000 } })
 	@Post('register')
 	@ApiOperation({ summary: 'Регистрация нового пользователя' })
-	async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-		const { user, accessToken, refreshToken } = await this.authService.register(dto)
+	async register(
+		@Body() dto: RegisterDto,
+		@Res({ passthrough: true }) res: Response,
+	) {
+		const { user, accessToken, refreshToken } =
+			await this.authService.register(dto)
 		setRefreshCookie(res, refreshToken)
 		return { user, accessToken }
 	}
 
+	@Throttle({ default: { limit: 10, ttl: 60_000 } })
 	@Post('login')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Вход в систему' })
-	async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-		const { user, accessToken, refreshToken } = await this.authService.login(dto)
+	async login(
+		@Body() dto: LoginDto,
+		@Res({ passthrough: true }) res: Response,
+	) {
+		const { user, accessToken, refreshToken } =
+			await this.authService.login(dto)
 		setRefreshCookie(res, refreshToken)
 		return { user, accessToken }
 	}
@@ -59,11 +70,17 @@ export class AuthController {
 	@Post('refresh')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Обновление access токена через httpOnly cookie' })
-	async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-		const token: string | undefined = (req.cookies as Record<string, string>)[REFRESH_COOKIE]
+	async refresh(
+		@Req() req: Request,
+		@Res({ passthrough: true }) res: Response,
+	) {
+		const token: string | undefined = (req.cookies as Record<string, string>)[
+			REFRESH_COOKIE
+		]
 		if (!token) throw new UnauthorizedException('Refresh token отсутствует')
 
-		const { user, accessToken, refreshToken } = await this.authService.refresh(token)
+		const { user, accessToken, refreshToken } =
+			await this.authService.refresh(token)
 		setRefreshCookie(res, refreshToken)
 		return { user, accessToken }
 	}

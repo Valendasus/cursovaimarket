@@ -7,13 +7,14 @@ import { motion } from 'framer-motion'
 import { Lock, Mail, User, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { z } from 'zod'
 
 const registerSchema = z
 	.object({
 		name: z.string().min(2, 'Имя должно содержать минимум 2 символа'),
 		email: z.string().email('Введите корректный email'),
-		password: z.string().min(6, 'Пароль должен содержать минимум 6 символов'),
+		password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
 		confirmPassword: z.string(),
 	})
 	.refine(d => d.password === d.confirmPassword, {
@@ -45,6 +46,7 @@ export default function RegisterPage() {
 				backendRole,
 			)
 			setUser(result.user, result.accessToken)
+			toast.success('Аккаунт создан! Добро пожаловать 🎉')
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Ошибка регистрации')

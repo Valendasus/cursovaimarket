@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { ThrottlerModule } from '@nestjs/throttler'
+import { APP_GUARD } from '@nestjs/core'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { AuthModule } from './modules/auth/auth.module'
 import { ChatModule } from './modules/chat/chat.module'
 import { OrdersModule } from './modules/orders/orders.module'
@@ -14,8 +15,8 @@ import { PrismaModule } from './prisma/prisma.module'
 		// Config — загружает .env глобально
 		ConfigModule.forRoot({ isGlobal: true }),
 
-		// Rate limiting — 100 запросов за 60 сек
-		ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+		// Rate limiting — 100 req / 60s globally, overridden per-route
+		ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
 
 		// Core
 		PrismaModule,
@@ -27,6 +28,10 @@ import { PrismaModule } from './prisma/prisma.module'
 		OrdersModule,
 		ReviewsModule,
 		ChatModule,
+	],
+	providers: [
+		// Apply ThrottlerGuard globally (routes can override with @Throttle / @SkipThrottle)
+		{ provide: APP_GUARD, useClass: ThrottlerGuard },
 	],
 })
 export class AppModule {}

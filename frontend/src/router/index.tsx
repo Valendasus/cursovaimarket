@@ -55,6 +55,9 @@ const freelancerRoute = createRoute({
 const loginRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/login',
+	validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({
+		redirect: typeof s.redirect === 'string' ? s.redirect : undefined,
+	}),
 	component: wrap(LoginPage),
 })
 const registerRoute = createRoute({
@@ -73,10 +76,10 @@ const dashboardRoute = createRoute({
 		if (search.partnerId) result.partnerId = String(search.partnerId)
 		return result
 	},
-	beforeLoad: () => {
+	beforeLoad: ({ location }) => {
 		const { isAuthenticated } = useAuthStore.getState()
 		if (!isAuthenticated) {
-			throw redirect({ to: '/login' })
+			throw redirect({ to: '/login', search: { redirect: location.pathname } })
 		}
 	},
 	component: wrap(DashboardPage),

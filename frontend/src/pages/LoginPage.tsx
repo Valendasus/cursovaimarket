@@ -2,15 +2,16 @@ import { loginApi } from '@/api/auth'
 import { extractApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { Lock, LogIn, Mail } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { z } from 'zod'
 
 const loginSchema = z.object({
 	email: z.string().email('Введите корректный email'),
-	password: z.string().min(6, 'Пароль должен содержать минимум 6 символов'),
+	password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -18,6 +19,7 @@ type LoginForm = z.infer<typeof loginSchema>
 export default function LoginPage() {
 	const { setUser } = useAuthStore()
 	const navigate = useNavigate()
+	const { redirect } = useSearch({ strict: false }) as { redirect?: string }
 	const {
 		register,
 		handleSubmit,
@@ -29,7 +31,8 @@ export default function LoginPage() {
 		try {
 			const result = await loginApi(data.email, data.password)
 			setUser(result.user, result.accessToken)
-			await navigate({ to: '/' })
+			toast.success('Добро пожаловать!')
+			await navigate({ to: redirect ?? '/' })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Неверный email или пароль')
 			setError('email', { message: msg })

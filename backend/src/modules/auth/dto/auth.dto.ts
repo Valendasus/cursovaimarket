@@ -18,9 +18,9 @@ export class RegisterDto {
 	@IsEmail({}, { message: 'Введите корректный email' })
 	email: string
 
-	@ApiProperty({ example: 'password123', minLength: 6 })
+	@ApiProperty({ example: 'password123', minLength: 8, maxLength: 72 })
 	@IsString()
-	@MinLength(6, { message: 'Пароль минимум 6 символов' })
+	@MinLength(8, { message: 'Пароль минимум 8 символов' })
 	password: string
 
 	@ApiProperty({ enum: UserRole, default: UserRole.STUDENT })
