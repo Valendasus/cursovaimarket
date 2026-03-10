@@ -117,7 +117,7 @@ export default function LoginPage() {
 					</form>
 
 					<p className='text-center text-xs text-muted-foreground mt-6'>
-						Для теста: test@test.com / 123456
+						Для теста: student@cursovai.ru / Password123!
 					</p>
 				</motion.div>
 			</div>

@@ -166,6 +166,24 @@ function OrderCard({
 								</button>
 							</>
 						)}
+						{role === 'freelancer' && order.status === 'accepted' && (
+							<>
+								<button
+									onClick={() => changeStatus('in_progress')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Взять в работу
+								</button>
+								<button
+									onClick={() => changeStatus('cancelled')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Отклонить
+								</button>
+							</>
+						)}
 						{role === 'freelancer' && order.status === 'in_progress' && (
 							<>
 								<button
