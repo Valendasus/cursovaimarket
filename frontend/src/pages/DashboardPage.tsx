@@ -235,7 +235,7 @@ function InlineChatContent({
 	})
 	const [input, setInput] = useState('')
 	const [sending, setSending] = useState(false)
-	const bottomRef = useRef<HTMLDivElement | null>(null)
+	const scrollRef = useRef<HTMLDivElement | null>(null)
 	const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
 	useEffect(() => {
@@ -243,7 +243,8 @@ function InlineChatContent({
 	}, [markRead, orderId])
 
 	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+		const el = scrollRef.current
+		if (el) el.scrollTop = el.scrollHeight
 	}, [messages])
 
 	const handleSend = async () => {
@@ -280,7 +281,7 @@ function InlineChatContent({
 			)}
 
 			{/* Messages */}
-			<div className='flex-1 overflow-y-auto p-4 space-y-3'>
+			<div ref={scrollRef} className='flex-1 overflow-y-auto p-4 space-y-3'>
 				{messages.length === 0 ? (
 					<div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
 						<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
@@ -336,7 +337,6 @@ function InlineChatContent({
 						)
 					})
 				)}
-				<div ref={bottomRef} />
 			</div>
 
 			{/* Input */}
