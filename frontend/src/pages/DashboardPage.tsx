@@ -1397,7 +1397,7 @@ export default function DashboardPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
-			<div className='container-custom py-8'>
+			<div className='container-custom pt-24 pb-8'>
 				<motion.div
 					initial={{ opacity: 0, y: 16 }}
 					animate={{ opacity: 1, y: 0 }}
