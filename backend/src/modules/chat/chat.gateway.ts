@@ -21,7 +21,7 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
 	cors: {
-		origin: true, // mirrors request origin — required when credentials:true
+		origin: true,
 		credentials: true,
 	},
 	namespace: '/chat',
@@ -34,8 +34,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		private chatService: ChatService,
 		private jwtService: JwtService,
 	) {}
-
-	// ── Connection lifecycle ──────────────────────────────────────────────────
 
 	async handleConnection(client: AuthenticatedSocket) {
 		try {
@@ -50,9 +48,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				return
 			}
 
-			const payload = this.jwtService.verify<{ sub: string; name?: string }>(
-				token,
-			)
+			const payload = this.jwtService.verify<{ sub: string; name?: string }>(token)
 			client.data.userId = payload.sub
 			client.data.userName = payload.name ?? 'Пользователь'
 		} catch {
@@ -62,41 +58,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	handleDisconnect(client: AuthenticatedSocket) {
-		// Socket.IO automatically removes client from all rooms on disconnect
 		void client
 	}
 
-	// ── Events ────────────────────────────────────────────────────────────────
-
-	/** Client joins an order's chat room and receives message history */
+	/** Client joins a conversation room and receives message history */
 	@SubscribeMessage('joinRoom')
 	async handleJoinRoom(
 		@ConnectedSocket() client: AuthenticatedSocket,
-		@MessageBody() data: { orderId: string },
+		@MessageBody() data: { conversationId: string },
 	) {
-		const { orderId } = data
-		if (!orderId) throw new WsException('orderId обязателен')
+		const { conversationId } = data
+		if (!conversationId) throw new WsException('conversationId обязателен')
 
 		try {
-			await this.chatService.assertParticipant(orderId, client.data.userId)
+			await this.chatService.assertParticipant(conversationId, client.data.userId)
 		} catch {
-			throw new WsException('Нет доступа к чату этого заказа')
+			throw new WsException('Нет доступа к этой переписке')
 		}
 
-		// Leave any previously joined rooms (except own socket room)
 		for (const room of client.rooms) {
 			if (room !== client.id && room.startsWith('chat:')) {
 				await client.leave(room)
 			}
 		}
 
-		await client.join(`chat:${orderId}`)
+		await client.join(`chat:${conversationId}`)
+		await this.chatService.markAsRead(conversationId, client.data.userId)
 
-		// Mark messages as read on join
-		await this.chatService.markAsRead(orderId, client.data.userId)
-
-		// Send message history
-		const history = await this.chatService.getMessages(orderId, 1, 50)
+		const history = await this.chatService.getMessages(conversationId, 1, 50)
 		client.emit('history', history)
 	}
 
@@ -104,48 +93,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@SubscribeMessage('sendMessage')
 	async handleSendMessage(
 		@ConnectedSocket() client: AuthenticatedSocket,
-		@MessageBody() data: { orderId: string; content: string },
+		@MessageBody() data: { conversationId: string; content: string },
 	) {
-		const { orderId, content } = data
+		const { conversationId, content } = data
 
-		if (!orderId) throw new WsException('orderId обязателен')
-		if (!content?.trim())
-			throw new WsException('Сообщение не может быть пустым')
-		if (content.length > 2000)
-			throw new WsException('Сообщение не может превышать 2000 символов')
+		if (!conversationId) throw new WsException('conversationId обязателен')
+		if (!content?.trim()) throw new WsException('Сообщение не может быть пустым')
+		if (content.length > 2000) throw new WsException('Сообщение не может превышать 2000 символов')
 
 		try {
-			await this.chatService.assertParticipant(orderId, client.data.userId)
+			await this.chatService.assertParticipant(conversationId, client.data.userId)
 		} catch {
-			throw new WsException('Нет доступа к чату этого заказа')
+			throw new WsException('Нет доступа к этой переписке')
 		}
 
 		const message = await this.chatService.saveMessage(
-			orderId,
+			conversationId,
 			client.data.userId,
 			content.trim(),
 		)
 
-		// Broadcast to everyone in the room (including sender)
-		this.server.to(`chat:${orderId}`).emit('newMessage', message)
+		this.server.to(`chat:${conversationId}`).emit('newMessage', message)
 	}
 
-	/** Client notifies they've read messages */
+	/** Client marks messages as read */
 	@SubscribeMessage('markRead')
 	async handleMarkRead(
 		@ConnectedSocket() client: AuthenticatedSocket,
-		@MessageBody() data: { orderId: string },
+		@MessageBody() data: { conversationId: string },
 	) {
-		const { orderId } = data
-		if (!orderId) return
+		const { conversationId } = data
+		if (!conversationId) return
 
 		try {
-			await this.chatService.assertParticipant(orderId, client.data.userId)
-			await this.chatService.markAsRead(orderId, client.data.userId)
+			await this.chatService.assertParticipant(conversationId, client.data.userId)
+			await this.chatService.markAsRead(conversationId, client.data.userId)
 
-			// Notify others in the room that messages were read
-			client.to(`chat:${orderId}`).emit('messagesRead', {
-				orderId,
+			client.to(`chat:${conversationId}`).emit('messagesRead', {
+				conversationId,
 				byUserId: client.data.userId,
 			})
 		} catch {

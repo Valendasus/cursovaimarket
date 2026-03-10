@@ -14,7 +14,6 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ChatService } from './chat.service'
-import { SendMessageDto } from './dto/chat.dto'
 
 @ApiTags('Chat')
 @Controller('chat')
@@ -23,53 +22,63 @@ import { SendMessageDto } from './dto/chat.dto'
 export class ChatController {
 	constructor(private readonly chatService: ChatService) {}
 
-	/**
-	 * IMPORTANT: static routes must be declared before param routes.
-	 * GET /chat/unread/counts MUST come before GET /chat/:orderId
-	 * otherwise NestJS matches 'unread' as the orderId param.
-	 */
+	/** GET /chat/conversations — list all conversations for the current user */
+	@Get('conversations')
+	@ApiOperation({ summary: 'Список переписок текущего пользователя' })
+	async getConversations(@CurrentUser('id') userId: string) {
+		return this.chatService.getConversations(userId)
+	}
 
-	/** Get unread counts across all user orders */
+	/** POST /chat/conversations — find or create conversation with a partner */
+	@Post('conversations')
+	@ApiOperation({ summary: 'Найти или создать переписку с пользователем' })
+	async findOrCreate(
+		@CurrentUser('id') userId: string,
+		@Body() body: { partnerId: string },
+	) {
+		return this.chatService.findOrCreateConversation(userId, body.partnerId)
+	}
+
+	/** GET /chat/unread/counts — unread per conversationId */
 	@Get('unread/counts')
-	@ApiOperation({ summary: 'Количество непрочитанных сообщений по заказам' })
+	@ApiOperation({ summary: 'Количество непрочитанных сообщений по перепискам' })
 	async getUnreadCounts(@CurrentUser('id') userId: string) {
 		return this.chatService.getUnreadCounts(userId)
 	}
 
-	/** Get message history for an order (HTTP fallback) */
-	@Get(':orderId')
-	@ApiOperation({ summary: 'История сообщений заказа' })
+	/** GET /chat/conversations/:id — paginated message history */
+	@Get('conversations/:conversationId')
+	@ApiOperation({ summary: 'История сообщений переписки' })
 	async getMessages(
-		@Param('orderId') orderId: string,
+		@Param('conversationId') conversationId: string,
 		@CurrentUser('id') userId: string,
 		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
 		@Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
 	) {
-		await this.chatService.assertParticipant(orderId, userId)
-		return this.chatService.getMessages(orderId, page, limit)
+		await this.chatService.assertParticipant(conversationId, userId)
+		return this.chatService.getMessages(conversationId, page, limit)
 	}
 
-	/** Send a message via REST (fallback when WS unavailable) */
-	@Post(':orderId')
-	@ApiOperation({ summary: 'Отправить сообщение' })
+	/** POST /chat/conversations/:id — send message via REST fallback */
+	@Post('conversations/:conversationId')
+	@ApiOperation({ summary: 'Отправить сообщение (fallback)' })
 	async sendMessage(
-		@Param('orderId') orderId: string,
+		@Param('conversationId') conversationId: string,
 		@CurrentUser('id') userId: string,
-		@Body() dto: SendMessageDto,
+		@Body() body: { content: string },
 	) {
-		await this.chatService.assertParticipant(orderId, userId)
-		return this.chatService.saveMessage(orderId, userId, dto.content)
+		await this.chatService.assertParticipant(conversationId, userId)
+		return this.chatService.saveMessage(conversationId, userId, body.content)
 	}
 
-	/** Mark messages as read */
-	@Patch(':orderId/read')
+	/** PATCH /chat/conversations/:id/read */
+	@Patch('conversations/:conversationId/read')
 	@ApiOperation({ summary: 'Отметить сообщения как прочитанные' })
-	async markAsRead(
-		@Param('orderId') orderId: string,
+	async markRead(
+		@Param('conversationId') conversationId: string,
 		@CurrentUser('id') userId: string,
 	) {
-		await this.chatService.assertParticipant(orderId, userId)
-		await this.chatService.markAsRead(orderId, userId)
-		return { ok: true }
+		await this.chatService.assertParticipant(conversationId, userId)
+		await this.chatService.markAsRead(conversationId, userId)
 	}
 }

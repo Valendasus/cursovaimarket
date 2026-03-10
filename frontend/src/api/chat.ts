@@ -1,8 +1,8 @@
 import apiClient from './client'
 
-export interface ChatMessage {
+export interface DirectMessage {
 	id: string
-	orderId: string
+	conversationId: string
 	senderId: string
 	content: string
 	isRead: boolean
@@ -14,43 +14,75 @@ export interface ChatMessage {
 	}
 }
 
-export interface ChatHistoryResponse {
-	data: ChatMessage[]
+export interface Conversation {
+	id: string
+	partner: {
+		id: string
+		name: string
+		avatar?: string | null
+	}
+	lastMessage: {
+		content: string
+		createdAt: string
+		senderId: string
+	} | null
+	updatedAt: string
+}
+
+export interface MessageHistoryResponse {
+	data: DirectMessage[]
 	total: number
 	page: number
 	limit: number
 }
 
-/** GET /chat/:orderId — message history (HTTP fallback) */
-export async function getChatHistory(
-	orderId: string,
+/** GET /chat/conversations */
+export async function getConversations(): Promise<Conversation[]> {
+	const { data } = await apiClient.get<Conversation[]>('/v1/chat/conversations')
+	return data
+}
+
+/** POST /chat/conversations — find or create conversation with partner */
+export async function findOrCreateConversation(
+	partnerId: string,
+): Promise<Conversation & { userAId: string; userBId: string }> {
+	const { data } = await apiClient.post<
+		Conversation & { userAId: string; userBId: string }
+	>('/v1/chat/conversations', { partnerId })
+	return data
+}
+
+/** GET /chat/conversations/:id */
+export async function getConversationMessages(
+	conversationId: string,
 	page = 1,
 	limit = 50,
-): Promise<ChatHistoryResponse> {
-	const { data } = await apiClient.get<ChatHistoryResponse>(
-		`/v1/chat/${orderId}`,
+): Promise<MessageHistoryResponse> {
+	const { data } = await apiClient.get<MessageHistoryResponse>(
+		`/v1/chat/conversations/${conversationId}`,
 		{ params: { page, limit } },
 	)
 	return data
 }
 
-/** POST /chat/:orderId — send message via REST fallback */
-export async function sendMessageHttp(
-	orderId: string,
+/** POST /chat/conversations/:id — send message (REST fallback) */
+export async function sendDirectMessageHttp(
+	conversationId: string,
 	content: string,
-): Promise<ChatMessage> {
-	const { data } = await apiClient.post<ChatMessage>(`/v1/chat/${orderId}`, {
-		content,
-	})
+): Promise<DirectMessage> {
+	const { data } = await apiClient.post<DirectMessage>(
+		`/v1/chat/conversations/${conversationId}`,
+		{ content },
+	)
 	return data
 }
 
-/** PATCH /chat/:orderId/read — mark messages as read */
-export async function markChatRead(orderId: string): Promise<void> {
-	await apiClient.patch(`/v1/chat/${orderId}/read`)
+/** PATCH /chat/conversations/:id/read */
+export async function markConversationRead(conversationId: string): Promise<void> {
+	await apiClient.patch(`/v1/chat/conversations/${conversationId}/read`)
 }
 
-/** GET /chat/unread/counts — unread counts per orderId */
+/** GET /chat/unread/counts */
 export async function getUnreadCounts(): Promise<Record<string, number>> {
 	const { data } = await apiClient.get<Record<string, number>>(
 		'/v1/chat/unread/counts',

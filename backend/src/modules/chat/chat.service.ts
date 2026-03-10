@@ -5,56 +5,113 @@ import {
 	NotFoundException,
 } from '@nestjs/common'
 
+const USER_SELECT = { id: true, name: true, avatar: true } as const
+
 @Injectable()
 export class ChatService {
 	constructor(private prisma: PrismaService) {}
 
-	/** Validate that userId is either the student or freelancer of the order */
-	async assertParticipant(orderId: string, userId: string) {
-		const order = await this.prisma.order.findUnique({
-			where: { id: orderId },
-			select: { studentId: true, freelancerId: true },
-		})
-		if (!order) throw new NotFoundException('Заказ не найден')
-		if (order.studentId !== userId && order.freelancerId !== userId) {
-			throw new ForbiddenException('Нет доступа к чату этого заказа')
-		}
-		return order
-	}
+	// ── Conversations ──────────────────────────────────────────────────────────
 
-	/** Save message to DB and return it with sender info */
-	async saveMessage(orderId: string, senderId: string, content: string) {
-		return this.prisma.chatMessage.create({
-			data: { orderId, senderId, content },
+	/**
+	 * Find existing conversation between two users or create one.
+	 * userAId is always the lexicographically smaller id to ensure uniqueness.
+	 */
+	async findOrCreateConversation(userIdA: string, userIdB: string) {
+		const [a, b] = [userIdA, userIdB].sort()
+		const existing = await this.prisma.conversation.findUnique({
+			where: { userAId_userBId: { userAId: a, userBId: b } },
 			include: {
-				sender: { select: { id: true, name: true, avatar: true } },
+				userA: { select: USER_SELECT },
+				userB: { select: USER_SELECT },
+			},
+		})
+		if (existing) return existing
+
+		return this.prisma.conversation.create({
+			data: { userAId: a, userBId: b },
+			include: {
+				userA: { select: USER_SELECT },
+				userB: { select: USER_SELECT },
 			},
 		})
 	}
 
-	/** Get paginated messages for an order (oldest first for rendering) */
-	async getMessages(orderId: string, page = 1, limit = 50) {
+	/** List all conversations for a user, sorted by latest activity */
+	async getConversations(userId: string) {
+		const conversations = await this.prisma.conversation.findMany({
+			where: { OR: [{ userAId: userId }, { userBId: userId }] },
+			include: {
+				userA: { select: USER_SELECT },
+				userB: { select: USER_SELECT },
+				messages: {
+					orderBy: { createdAt: 'desc' },
+					take: 1,
+					select: { content: true, createdAt: true, senderId: true },
+				},
+			},
+			orderBy: { updatedAt: 'desc' },
+		})
+
+		return conversations.map(conv => ({
+			id: conv.id,
+			partner: conv.userAId === userId ? conv.userB : conv.userA,
+			lastMessage: conv.messages[0] ?? null,
+			updatedAt: conv.updatedAt,
+		}))
+	}
+
+	/** Validate that userId is a participant of the conversation */
+	async assertParticipant(conversationId: string, userId: string) {
+		const conv = await this.prisma.conversation.findUnique({
+			where: { id: conversationId },
+			select: { userAId: true, userBId: true },
+		})
+		if (!conv) throw new NotFoundException('Переписка не найдена')
+		if (conv.userAId !== userId && conv.userBId !== userId) {
+			throw new ForbiddenException('Нет доступа к этой переписке')
+		}
+		return conv
+	}
+
+	// ── Messages ──────────────────────────────────────────────────────────────
+
+	/** Save a direct message and return it with sender info */
+	async saveMessage(conversationId: string, senderId: string, content: string) {
+		const [msg] = await this.prisma.$transaction([
+			this.prisma.directMessage.create({
+				data: { conversationId, senderId, content },
+				include: { sender: { select: USER_SELECT } },
+			}),
+			this.prisma.conversation.update({
+				where: { id: conversationId },
+				data: { updatedAt: new Date() },
+			}),
+		])
+		return msg
+	}
+
+	/** Paginated message history (oldest first) */
+	async getMessages(conversationId: string, page = 1, limit = 50) {
 		const skip = (page - 1) * limit
 		const [data, total] = await Promise.all([
-			this.prisma.chatMessage.findMany({
-				where: { orderId },
-				include: {
-					sender: { select: { id: true, name: true, avatar: true } },
-				},
+			this.prisma.directMessage.findMany({
+				where: { conversationId },
+				include: { sender: { select: USER_SELECT } },
 				orderBy: { createdAt: 'asc' },
 				skip,
 				take: limit,
 			}),
-			this.prisma.chatMessage.count({ where: { orderId } }),
+			this.prisma.directMessage.count({ where: { conversationId } }),
 		])
 		return { data, total, page, limit }
 	}
 
-	/** Mark all messages in this order NOT sent by userId as read */
-	async markAsRead(orderId: string, userId: string) {
-		await this.prisma.chatMessage.updateMany({
+	/** Mark all messages in a conversation not sent by userId as read */
+	async markAsRead(conversationId: string, userId: string) {
+		await this.prisma.directMessage.updateMany({
 			where: {
-				orderId,
+				conversationId,
 				senderId: { not: userId },
 				isRead: false,
 			},
@@ -62,19 +119,26 @@ export class ChatService {
 		})
 	}
 
-	/** Count unread messages for a user across all their orders */
+	/** Count unread messages per conversationId for a user */
 	async getUnreadCounts(userId: string): Promise<Record<string, number>> {
-		const rows = await this.prisma.chatMessage.groupBy({
-			by: ['orderId'],
+		const convIds = (
+			await this.prisma.conversation.findMany({
+				where: { OR: [{ userAId: userId }, { userBId: userId }] },
+				select: { id: true },
+			})
+		).map(c => c.id)
+
+		if (convIds.length === 0) return {}
+
+		const rows = await this.prisma.directMessage.groupBy({
+			by: ['conversationId'],
 			where: {
+				conversationId: { in: convIds },
 				isRead: false,
 				senderId: { not: userId },
-				order: {
-					OR: [{ studentId: userId }, { freelancerId: userId }],
-				},
 			},
 			_count: { id: true },
 		})
-		return Object.fromEntries(rows.map(r => [r.orderId, r._count.id]))
+		return Object.fromEntries(rows.map(r => [r.conversationId, r._count.id]))
 	}
 }

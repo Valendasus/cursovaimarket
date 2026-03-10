@@ -1,14 +1,16 @@
 import { updateMeApi, updateProfileApi } from '@/api/auth'
-import { getUnreadCounts } from '@/api/chat'
+import {
+	findOrCreateConversation,
+	getConversations,
+	getUnreadCounts,
+} from '@/api/chat'
 import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
 import { getMyOrders, updateOrderStatus } from '@/api/orders'
 import { getMyReviews, getReceivedReviews } from '@/api/reviews'
 import type { CreateServicePayload } from '@/api/services'
 import { createService, deleteService, getMyServices } from '@/api/services'
-import ChatPane from '@/features/chat/ChatPane'
 import { useChatSocket } from '@/hooks/useChatSocket'
-import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type { Service, ServiceCategory, ServiceLevel } from '@/types'
 import { SERVICE_CATEGORIES, SERVICE_LEVELS } from '@/types'
@@ -78,8 +80,7 @@ const STATUS_COLOR: Record<string, string> = {
 function OrderCard({
 	order,
 	role,
-	currentUserId,
-	unread = 0,
+	currentUserId: _currentUserId,
 }: {
 	order: Order
 	role: 'student' | 'freelancer' | string
@@ -88,7 +89,6 @@ function OrderCard({
 }) {
 	const queryClient = useQueryClient()
 	const [statusError, setStatusError] = useState('')
-	const [showChat, setShowChat] = useState(false)
 
 	const { mutate: changeStatus, isPending } = useMutation({
 		mutationFn: (status: string) => updateOrderStatus(order.id, status),
@@ -190,31 +190,20 @@ function OrderCard({
 					</>
 				)}
 
-				{/* Chat toggle — always available */}
-				<button
-					onClick={() => setShowChat(v => !v)}
-					className={`ml-auto relative text-xs px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
-						showChat
-							? 'bg-primary/10 text-primary'
-							: 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80'
-					}`}
+				{/* Chat link — opens Messages tab with this partner */}
+				<Link
+					to='/dashboard'
+					search={{
+						tab: 'messages',
+						partnerId:
+							role === 'student' ? order.freelancerId : order.studentId,
+					}}
+					className='ml-auto text-xs px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors font-medium flex items-center gap-1.5'
 				>
 					<MessageCircle className='w-3.5 h-3.5' />
-					Чат
-					{unread > 0 && !showChat && (
-						<span className='absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold'>
-							{unread > 9 ? '9+' : unread}
-						</span>
-					)}
-				</button>
+					Написать
+				</Link>
 			</div>
-
-			{/* Inline chat */}
-			<ChatPane
-				orderId={order.id}
-				currentUserId={currentUserId}
-				isOpen={showChat}
-			/>
 		</div>
 	)
 }
@@ -223,14 +212,14 @@ function OrderCard({
 
 /** Inner chat content used by MessagesTab (messages list + input) */
 function InlineChatContent({
-	orderId,
+	conversationId,
 	currentUserId,
 }: {
-	orderId: string
+	conversationId: string
 	currentUserId: string
 }) {
 	const { messages, status, sendMessage, markRead } = useChatSocket({
-		orderId,
+		conversationId,
 		enabled: true,
 	})
 	const [input, setInput] = useState('')
@@ -240,7 +229,7 @@ function InlineChatContent({
 
 	useEffect(() => {
 		markRead()
-	}, [markRead, orderId])
+	}, [markRead, conversationId])
 
 	useEffect(() => {
 		const el = scrollRef.current
@@ -374,16 +363,16 @@ function InlineChatContent({
 
 function MessagesTab({
 	currentUserId,
-	userRole,
 	initialPartnerId,
 }: {
 	currentUserId: string
-	userRole: string
 	initialPartnerId?: string
 }) {
-	const { data: orders = [], isLoading } = useQuery({
-		queryKey: ['my-orders'],
-		queryFn: getMyOrders,
+	const queryClient = useQueryClient()
+
+	const { data: conversations = [], isLoading } = useQuery({
+		queryKey: ['conversations'],
+		queryFn: getConversations,
 	})
 
 	const { data: unreadCounts = {} } = useQuery({
@@ -392,43 +381,26 @@ function MessagesTab({
 		refetchInterval: 15000,
 	})
 
-	const counterpart = (order: Order) =>
-		userRole === 'student' ? order.freelancer : order.student
+	const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
+	const [initDone, setInitDone] = useState(false)
 
-	const findOrderIdByPartnerId = (
-		list: Order[],
-		partnerId: string,
-	): string | null => {
-		const match = list.find(o =>
-			userRole === 'student'
-				? o.freelancerId === partnerId
-				: o.studentId === partnerId,
-		)
-		return match?.id ?? null
-	}
-
-	const [selectedOrderId, setSelectedOrderId] = useState<string | null>(
-		initialPartnerId
-			? null // will be set in effect after orders load
-			: null,
-	)
-
+	// When coming from "Написать" button — auto-find/create conversation
 	useEffect(() => {
-		if (initialPartnerId && orders.length > 0) {
-			setSelectedOrderId(prev => {
-				if (prev !== null) return prev
-				return findOrderIdByPartnerId(orders, initialPartnerId)
-			})
-		}
+		if (!initialPartnerId || initDone) return
+		setInitDone(true)
+		findOrCreateConversation(initialPartnerId).then(conv => {
+			setSelectedConvId(conv.id)
+			void queryClient.invalidateQueries({ queryKey: ['conversations'] })
+		})
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [orders.length])
+	}, [initialPartnerId])
 
-	const selectedOrder = orders.find(o => o.id === selectedOrderId)
+	const selectedConv = conversations.find(c => c.id === selectedConvId)
 
 	return (
 		<div className='glass-card rounded-2xl overflow-hidden'>
 			<div className='flex h-[520px]'>
-				{/* Sidebar — order list */}
+				{/* Sidebar — conversations list */}
 				<div className='w-64 shrink-0 border-r border-border flex flex-col'>
 					<div className='flex items-center gap-2 px-4 py-3 border-b border-border'>
 						<MessageSquare className='w-4 h-4 text-primary' />
@@ -447,46 +419,49 @@ function MessagesTab({
 									/>
 								))}
 							</div>
-						) : orders.length === 0 ? (
+						) : conversations.length === 0 ? (
 							<div className='flex flex-col items-center justify-center h-full text-muted-foreground p-4'>
 								<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
-								<p className='text-xs text-center'>Заказов нет</p>
+								<p className='text-xs text-center'>Переписок пока нет</p>
 							</div>
 						) : (
 							<div className='p-2 space-y-0.5'>
-								{orders.map(order => {
-									const cp = counterpart(order)
-									const unread = unreadCounts[order.id] ?? 0
-									const isSelected = selectedOrderId === order.id
+								{conversations.map(conv => {
+									const unread = unreadCounts[conv.id] ?? 0
+									const isSelected = selectedConvId === conv.id
 									return (
 										<button
-											key={order.id}
-											onClick={() => setSelectedOrderId(order.id)}
+											key={conv.id}
+											onClick={() => setSelectedConvId(conv.id)}
 											className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
 												isSelected
 													? 'bg-primary/10 text-primary'
 													: 'text-foreground hover:bg-muted/50'
 											}`}
 										>
-											{/* Avatar */}
 											<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
-												{cp?.avatar ? (
+												{conv.partner.avatar ? (
 													<img
-														src={cp.avatar}
-														alt={cp.name}
+														src={conv.partner.avatar}
+														alt={conv.partner.name}
 														className='w-full h-full object-cover'
 													/>
 												) : (
-													(cp?.name ?? '?').charAt(0).toUpperCase()
+													conv.partner.name.charAt(0).toUpperCase()
 												)}
 											</div>
 											<div className='flex-1 min-w-0'>
 												<p className='text-xs font-medium truncate'>
-													{cp?.name ?? 'Пользователь'}
+													{conv.partner.name}
 												</p>
-												<p className='text-[10px] text-muted-foreground truncate'>
-													{order.service?.title ?? 'Услуга'}
-												</p>
+												{conv.lastMessage && (
+													<p className='text-[10px] text-muted-foreground truncate'>
+														{conv.lastMessage.senderId === currentUserId
+															? 'Вы: '
+															: ''}
+														{conv.lastMessage.content}
+													</p>
+												)}
 											</div>
 											{unread > 0 && (
 												<span className='shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold'>
@@ -503,73 +478,43 @@ function MessagesTab({
 
 				{/* Chat area */}
 				<div className='flex-1 flex flex-col min-w-0'>
-					{selectedOrder ? (
+					{selectedConvId ? (
 						<>
 							{/* Chat header */}
 							<div className='flex items-center gap-3 px-4 py-3 border-b border-border shrink-0'>
 								<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden shrink-0'>
-									{(() => {
-										const cp = counterpart(selectedOrder)
-										return cp?.avatar ? (
-											<img
-												src={cp.avatar}
-												alt={cp.name}
-												className='w-full h-full object-cover'
-											/>
-										) : (
-											(cp?.name ?? '?').charAt(0).toUpperCase()
-										)
-									})()}
+									{selectedConv?.partner.avatar ? (
+										<img
+											src={selectedConv.partner.avatar}
+											alt={selectedConv.partner.name}
+											className='w-full h-full object-cover'
+										/>
+									) : (
+										(selectedConv?.partner.name ?? '?').charAt(0).toUpperCase()
+									)}
 								</div>
 								<div>
 									<p className='text-sm font-medium text-foreground'>
-										{counterpart(selectedOrder)?.name ?? 'Пользователь'}
+										{selectedConv?.partner.name ?? 'Пользователь'}
 									</p>
 									<p className='text-xs text-muted-foreground'>
-										{selectedOrder.service?.title}
-										{' · '}
-										<span
-											className={`${STATUS_COLOR[selectedOrder.status]?.split(' ')[1] ?? ''}`}
-										>
-											{STATUS_LABEL[selectedOrder.status] ??
-												selectedOrder.status}
-										</span>
+										Личные сообщения
 									</p>
 								</div>
 							</div>
 
-							{/* Messages + Input — using ChatPane internals */}
 							<InlineChatContent
-								orderId={selectedOrder.id}
+								conversationId={selectedConvId}
 								currentUserId={currentUserId}
 							/>
 						</>
-					) : initialPartnerId && !isLoading ? (
-						<div className='flex-1 flex flex-col items-center justify-center text-center p-8'>
-							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
-							<p className='text-sm font-semibold text-foreground mb-1'>
-								Нет совместных заказов
-							</p>
-							<p className='text-xs text-muted-foreground max-w-[200px]'>
-								Чтобы написать исполнителю, сначала оформите заказ на одну из
-								его услуг
-							</p>
-							<Link
-								to='/services'
-								className='mt-4 text-xs text-primary hover:underline'
-							>
-								Найти услуги →
-							</Link>
-						</div>
 					) : (
 						<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground'>
 							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
 							<p className='text-sm font-medium text-foreground'>
 								Выберите диалог
 							</p>
-							<p className='text-xs mt-1'>
-								Чат по каждому заказу доступен слева
-							</p>
+							<p className='text-xs mt-1'>Переписки доступны слева</p>
 						</div>
 					)}
 				</div>
@@ -1367,13 +1312,6 @@ export default function DashboardPage() {
 		enabled: !!user,
 	})
 
-	const { data: unreadCounts = {} } = useQuery({
-		queryKey: ['unread-counts'],
-		queryFn: getUnreadCounts,
-		enabled: !!user,
-		refetchInterval: 20000,
-	})
-
 	const activeCount = orders.filter(
 		o => o.status === 'pending' || o.status === 'in_progress',
 	).length
@@ -1549,7 +1487,6 @@ export default function DashboardPage() {
 														order={order}
 														role={user.role}
 														currentUserId={user.id}
-														unread={unreadCounts[order.id] ?? 0}
 													/>
 												))}
 											</div>
@@ -1580,7 +1517,6 @@ export default function DashboardPage() {
 								>
 									<MessagesTab
 										currentUserId={user.id}
-										userRole={user.role}
 										initialPartnerId={initialPartnerId}
 									/>
 								</motion.div>
