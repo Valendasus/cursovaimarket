@@ -57,11 +57,13 @@ export class AuthService {
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 		const refreshToken = await this.generateRefreshToken(
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 
 		return { user: this.sanitizeUser(user), accessToken, refreshToken }
@@ -83,11 +85,13 @@ export class AuthService {
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 		const refreshToken = await this.generateRefreshToken(
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 
 		return { user: this.sanitizeUser(user), accessToken, refreshToken }
@@ -119,11 +123,13 @@ export class AuthService {
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 		const newRefreshToken = await this.generateRefreshToken(
 			user.id,
 			user.email,
 			user.role,
+			user.name,
 		)
 
 		return {
@@ -145,9 +151,10 @@ export class AuthService {
 		userId: string,
 		email: string,
 		role: string,
+		name: string,
 	) {
 		return this.jwt.signAsync(
-			{ sub: userId, email, role, jti: randomUUID() },
+			{ sub: userId, email, role, name, jti: randomUUID() },
 			{
 				secret: this.config.get<string>('JWT_SECRET'),
 				expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '15m'),
@@ -159,9 +166,10 @@ export class AuthService {
 		userId: string,
 		email: string,
 		role: string,
+		name: string,
 	) {
 		return this.jwt.signAsync(
-			{ sub: userId, email, role, jti: randomUUID() },
+			{ sub: userId, email, role, name, jti: randomUUID() },
 			{
 				secret: this.config.get<string>('JWT_REFRESH_SECRET'),
 				expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '30d'),

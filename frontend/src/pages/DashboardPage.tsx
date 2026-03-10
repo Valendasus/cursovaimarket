@@ -167,13 +167,58 @@ function OrderCard({
 							</>
 						)}
 						{role === 'freelancer' && order.status === 'in_progress' && (
-							<button
-								onClick={() => changeStatus('completed')}
-								disabled={isPending}
-								className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
-							>
-								Завершить работу
-							</button>
+							<>
+								<button
+									onClick={() => changeStatus('review')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Отправить на проверку
+								</button>
+								<button
+									onClick={() => changeStatus('completed')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Завершить работу
+								</button>
+							</>
+						)}
+						{role === 'freelancer' && order.status === 'revision' && (
+							<>
+								<button
+									onClick={() => changeStatus('in_progress')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Возобновить работу
+								</button>
+								<button
+									onClick={() => changeStatus('cancelled')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Отменить
+								</button>
+							</>
+						)}
+						{role === 'student' && order.status === 'review' && (
+							<>
+								<button
+									onClick={() => changeStatus('completed')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Принять работу
+								</button>
+								<button
+									onClick={() => changeStatus('revision')}
+									disabled={isPending}
+									className='text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 disabled:opacity-50 transition-colors font-medium'
+								>
+									Запросить доработку
+								</button>
+							</>
 						)}
 						{role === 'student' &&
 							(order.status === 'pending' ||

@@ -107,22 +107,34 @@ export class OrdersService {
 		const isStudent = order.studentId === userId
 		const allowedForFreelancer: OrderStatus[] = [
 			OrderStatus.IN_PROGRESS,
+			OrderStatus.REVIEW,
 			OrderStatus.COMPLETED,
 			OrderStatus.CANCELLED,
 		]
-		const allowedForStudent: OrderStatus[] = [OrderStatus.CANCELLED]
+		const allowedForStudent: OrderStatus[] = [
+			OrderStatus.REVISION,
+			OrderStatus.COMPLETED,
+			OrderStatus.CANCELLED,
+		]
 
 		if (isFreelancer && !allowedForFreelancer.includes(dto.status)) {
-			throw new ForbiddenException('Фрилансер не может установить этот статус')
+			throw new ForbiddenException('Недопустимый статус для фрилансера')
 		}
 		if (isStudent && !allowedForStudent.includes(dto.status)) {
-			throw new ForbiddenException('Студент может только отменить заказ')
+			throw new ForbiddenException('Недопустимый статус для заказчика')
 		}
 
 		// Sequential transition validation
 		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
 			[OrderStatus.PENDING]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
-			[OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+			[OrderStatus.IN_PROGRESS]: [
+				OrderStatus.REVIEW,
+				OrderStatus.COMPLETED,
+				OrderStatus.CANCELLED,
+			],
+			[OrderStatus.REVIEW]: [OrderStatus.COMPLETED, OrderStatus.REVISION],
+			[OrderStatus.REVISION]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
 		}
 		const allowedNext = validTransitions[order.status] ?? []
 		if (!allowedNext.includes(dto.status)) {

@@ -53,18 +53,7 @@ export function mapUser(u: BackendUser): User | FreelancerProfile {
 			isVerified: u.profile.isVerified ?? false,
 			responseTime: u.profile.responseTime ?? '~24 часа',
 			location: u.profile.location,
-		} as FreelancerProfile
-	}
-
-	return base
-}
-
-// ─── API calls ────────────────────────────────────────────────────────────────
-
-export async function loginApi(email: string, password: string) {
-	const { data } = await apiClient.post<AuthResponse>('/v1/auth/login', {
-		email,
-		password,
+                        telegram: u.profile.telegram,
 	})
 	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
