@@ -1,8 +1,6 @@
 import type { FreelancerProfile, User, UserRole } from '@/types'
 import apiClient from './client'
 
-// ─── Backend shapes ───────────────────────────────────────────────────────────
-
 interface BackendUser {
 	id: string
 	email: string
@@ -28,8 +26,6 @@ interface AuthResponse {
 	accessToken: string
 }
 
-// ─── Mapper ───────────────────────────────────────────────────────────────────
-
 export function mapUser(u: BackendUser): User | FreelancerProfile {
 	const role = u.role.toLowerCase() as UserRole
 	const base: User = {
@@ -53,7 +49,17 @@ export function mapUser(u: BackendUser): User | FreelancerProfile {
 			isVerified: u.profile.isVerified ?? false,
 			responseTime: u.profile.responseTime ?? '~24 часа',
 			location: u.profile.location,
-                        telegram: u.profile.telegram,
+			telegram: u.profile.telegram,
+		} as FreelancerProfile
+	}
+
+	return base
+}
+
+export async function loginApi(email: string, password: string) {
+	const { data } = await apiClient.post<AuthResponse>('/v1/auth/login', {
+		email,
+		password,
 	})
 	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
@@ -73,7 +79,6 @@ export async function registerApi(
 	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
 
-/** Refresh access token using httpOnly refresh_token cookie */
 export async function refreshApi() {
 	const { data } = await apiClient.post<AuthResponse>('/v1/auth/refresh')
 	return { user: mapUser(data.user), accessToken: data.accessToken }
