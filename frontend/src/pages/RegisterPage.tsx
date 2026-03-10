@@ -44,7 +44,7 @@ export default function RegisterPage() {
 				data.password,
 				backendRole,
 			)
-			setUser(result.user, result.accessToken, result.refreshToken)
+			setUser(result.user, result.accessToken)
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Ошибка регистрации')

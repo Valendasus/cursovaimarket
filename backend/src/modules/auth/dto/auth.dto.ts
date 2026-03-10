@@ -38,10 +38,3 @@ export class LoginDto {
 	@IsNotEmpty()
 	password: string
 }
-
-export class RefreshTokenDto {
-	@ApiProperty()
-	@IsString()
-	@IsNotEmpty()
-	refreshToken: string
-}

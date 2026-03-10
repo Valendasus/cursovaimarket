@@ -28,7 +28,7 @@ export default function LoginPage() {
 	const onSubmit = async (data: LoginForm) => {
 		try {
 			const result = await loginApi(data.email, data.password)
-			setUser(result.user, result.accessToken, result.refreshToken)
+			setUser(result.user, result.accessToken)
 			await navigate({ to: '/' })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Неверный email или пароль')

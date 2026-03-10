@@ -1,7 +1,7 @@
 import type { FreelancerProfile, User, UserRole } from '@/types'
 import apiClient from './client'
 
-// ─── Response types (backend shape) ──────────────────────────────────────────
+// ─── Backend shapes ───────────────────────────────────────────────────────────
 
 interface BackendUser {
 	id: string
@@ -26,10 +26,9 @@ interface BackendUser {
 interface AuthResponse {
 	user: BackendUser
 	accessToken: string
-	refreshToken: string
 }
 
-// ─── Mappers ─────────────────────────────────────────────────────────────────
+// ─── Mapper ───────────────────────────────────────────────────────────────────
 
 export function mapUser(u: BackendUser): User | FreelancerProfile {
 	const role = u.role.toLowerCase() as UserRole
@@ -67,11 +66,7 @@ export async function loginApi(email: string, password: string) {
 		email,
 		password,
 	})
-	return {
-		user: mapUser(data.user),
-		accessToken: data.accessToken,
-		refreshToken: data.refreshToken,
-	}
+	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
 
 export async function registerApi(
@@ -86,28 +81,17 @@ export async function registerApi(
 		password,
 		role,
 	})
-	return {
-		user: mapUser(data.user),
-		accessToken: data.accessToken,
-		refreshToken: data.refreshToken,
-	}
+	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
 
-export async function refreshApi(refreshToken: string) {
-	const { data } = await apiClient.post<AuthResponse>('/v1/auth/refresh', {
-		refreshToken,
-	})
-	return {
-		user: mapUser(data.user),
-		accessToken: data.accessToken,
-		refreshToken: data.refreshToken,
-	}
+/** Refresh access token using httpOnly refresh_token cookie */
+export async function refreshApi() {
+	const { data } = await apiClient.post<AuthResponse>('/v1/auth/refresh')
+	return { user: mapUser(data.user), accessToken: data.accessToken }
 }
 
 export async function logoutApi() {
-	await apiClient.post('/v1/auth/logout').catch(() => {
-		// игнорируем если сервер недоступен
-	})
+	await apiClient.post('/v1/auth/logout').catch(() => {})
 }
 
 export async function updateMeApi(data: { name?: string; avatar?: string }) {

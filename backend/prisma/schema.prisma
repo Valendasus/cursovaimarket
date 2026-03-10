@@ -69,7 +69,6 @@ model User {
   buyerOrders       Order[]         @relation("BuyerOrders")
   freelancerOrders  Order[]         @relation("FreelancerOrders")
   reviews           Review[]        @relation("AuthorReviews")
-  refreshTokens     RefreshToken[]
   chatMessages      ChatMessage[]
   conversationsAsA  Conversation[] @relation("ConversationA")
   conversationsAsB  Conversation[] @relation("ConversationB")
@@ -178,18 +177,6 @@ model Review {
   author  User    @relation("AuthorReviews", fields: [authorId], references: [id])
 
   @@map("reviews")
-}
-
-model RefreshToken {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("refresh_tokens")
 }
 
 model ChatMessage {

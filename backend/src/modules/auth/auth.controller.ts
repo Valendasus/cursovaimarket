@@ -6,12 +6,33 @@ import {
 	HttpCode,
 	HttpStatus,
 	Post,
+	Req,
+	Res,
+	UnauthorizedException,
 	UseGuards,
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import type { Request, Response } from 'express'
 import { AuthService } from './auth.service'
-import { LoginDto, RefreshTokenDto, RegisterDto } from './dto/auth.dto'
+import { LoginDto, RegisterDto } from './dto/auth.dto'
+
+const REFRESH_COOKIE = 'refresh_token'
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days in ms
+
+function setRefreshCookie(res: Response, token: string) {
+	res.cookie(REFRESH_COOKIE, token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+		maxAge: COOKIE_MAX_AGE,
+		path: '/',
+	})
+}
+
+function clearRefreshCookie(res: Response) {
+	res.clearCookie(REFRESH_COOKIE, { path: '/' })
+}
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -20,22 +41,31 @@ export class AuthController {
 
 	@Post('register')
 	@ApiOperation({ summary: 'Регистрация нового пользователя' })
-	register(@Body() dto: RegisterDto) {
-		return this.authService.register(dto)
+	async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+		const { user, accessToken, refreshToken } = await this.authService.register(dto)
+		setRefreshCookie(res, refreshToken)
+		return { user, accessToken }
 	}
 
 	@Post('login')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Вход в систему' })
-	login(@Body() dto: LoginDto) {
-		return this.authService.login(dto)
+	async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+		const { user, accessToken, refreshToken } = await this.authService.login(dto)
+		setRefreshCookie(res, refreshToken)
+		return { user, accessToken }
 	}
 
 	@Post('refresh')
 	@HttpCode(HttpStatus.OK)
-	@ApiOperation({ summary: 'Обновление access токена' })
-	refresh(@Body() dto: RefreshTokenDto) {
-		return this.authService.refresh(dto.refreshToken)
+	@ApiOperation({ summary: 'Обновление access токена через httpOnly cookie' })
+	async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+		const token: string | undefined = (req.cookies as Record<string, string>)[REFRESH_COOKIE]
+		if (!token) throw new UnauthorizedException('Refresh token отсутствует')
+
+		const { user, accessToken, refreshToken } = await this.authService.refresh(token)
+		setRefreshCookie(res, refreshToken)
+		return { user, accessToken }
 	}
 
 	@Post('logout')
@@ -43,8 +73,9 @@ export class AuthController {
 	@ApiBearerAuth()
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Выход из системы' })
-	logout(@CurrentUser('id') userId: string) {
-		return this.authService.logout(userId)
+	logout(@Res({ passthrough: true }) res: Response) {
+		clearRefreshCookie(res)
+		return this.authService.logout()
 	}
 
 	@Get('me')

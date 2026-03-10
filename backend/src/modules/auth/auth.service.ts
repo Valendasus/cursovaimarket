@@ -19,8 +19,9 @@ export class AuthService {
 		private config: ConfigService,
 	) {}
 
+	// ─── Register ──────────────────────────────────────────────────────────────
+
 	async register(dto: RegisterDto) {
-		// Check if email exists
 		const existing = await this.prisma.user.findUnique({
 			where: { email: dto.email },
 		})
@@ -28,7 +29,6 @@ export class AuthService {
 			throw new ConflictException('Пользователь с таким email уже существует')
 		}
 
-		// Check if name is taken
 		const existingName = await this.prisma.user.findUnique({
 			where: { name: dto.name },
 		})
@@ -44,7 +44,6 @@ export class AuthService {
 				email: dto.email,
 				password: hashedPassword,
 				role: dto.role,
-				// Create freelancer profile if registering as freelancer
 				...(dto.role === UserRole.FREELANCER && {
 					profile: { create: {} },
 				}),
@@ -52,11 +51,13 @@ export class AuthService {
 			include: { profile: true },
 		})
 
-		const tokens = await this.generateTokens(user.id, user.email, user.role)
-		await this.saveRefreshToken(user.id, tokens.refreshToken)
+		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
+		const refreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
 
-		return { user: this.sanitizeUser(user), ...tokens }
+		return { user: this.sanitizeUser(user), accessToken, refreshToken }
 	}
+
+	// ─── Login ─────────────────────────────────────────────────────────────────
 
 	async login(dto: LoginDto) {
 		const user = await this.prisma.user.findUnique({
@@ -64,80 +65,75 @@ export class AuthService {
 			include: { profile: true },
 		})
 
-		if (!user) {
+		if (!user || !(await bcrypt.compare(dto.password, user.password))) {
 			throw new UnauthorizedException('Неверный email или пароль')
 		}
 
-		const passwordValid = await bcrypt.compare(dto.password, user.password)
-		if (!passwordValid) {
-			throw new UnauthorizedException('Неверный email или пароль')
-		}
+		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
+		const refreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
 
-		const tokens = await this.generateTokens(user.id, user.email, user.role)
-		await this.saveRefreshToken(user.id, tokens.refreshToken)
-
-		return { user: this.sanitizeUser(user), ...tokens }
+		return { user: this.sanitizeUser(user), accessToken, refreshToken }
 	}
 
-	async refresh(refreshToken: string) {
-		const stored = await this.prisma.refreshToken.findUnique({
-			where: { token: refreshToken },
-			include: { user: { include: { profile: true } } },
-		})
+	// ─── Refresh (stateless — verify JWT from cookie) ──────────────────────────
 
-		if (!stored || stored.expiresAt < new Date()) {
+	async refresh(refreshToken: string) {
+		let payload: { sub: string; email: string; role: string }
+
+		try {
+			payload = await this.jwt.verifyAsync(refreshToken, {
+				secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+			})
+		} catch {
 			throw new UnauthorizedException('Недействительный refresh token')
 		}
 
-		const tokens = await this.generateTokens(
-			stored.user.id,
-			stored.user.email,
-			stored.user.role,
-		)
+		const user = await this.prisma.user.findUnique({
+			where: { id: payload.sub },
+			include: { profile: true },
+		})
 
-		// Rotate token
-		await this.prisma.refreshToken.delete({ where: { id: stored.id } })
-		await this.saveRefreshToken(stored.user.id, tokens.refreshToken)
+		if (!user) {
+			throw new UnauthorizedException('Пользователь не найден')
+		}
 
-		return { user: this.sanitizeUser(stored.user), ...tokens }
+		const accessToken = await this.generateAccessToken(user.id, user.email, user.role)
+		const newRefreshToken = await this.generateRefreshToken(user.id, user.email, user.role)
+
+		return { user: this.sanitizeUser(user), accessToken, refreshToken: newRefreshToken }
 	}
 
-	async logout(userId: string) {
-		await this.prisma.refreshToken.deleteMany({ where: { userId } })
+	// ─── Logout ────────────────────────────────────────────────────────────────
+
+	logout() {
 		return { message: 'Выход выполнен' }
 	}
 
 	// ─── Helpers ───────────────────────────────────────────────────────────────
 
-	private async generateTokens(userId: string, email: string, role: string) {
-		const payload = { sub: userId, email, role, jti: randomUUID() }
-
-		const [accessToken, refreshToken] = await Promise.all([
-			this.jwt.signAsync(payload, {
-				secret: this.config.get('JWT_SECRET'),
-				expiresIn: this.config.get('JWT_EXPIRES_IN', '7d'),
-			}),
-			this.jwt.signAsync(payload, {
-				secret: this.config.get('JWT_REFRESH_SECRET'),
-				expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '30d'),
-			}),
-		])
-
-		return { accessToken, refreshToken }
+	private async generateAccessToken(userId: string, email: string, role: string) {
+		return this.jwt.signAsync(
+			{ sub: userId, email, role, jti: randomUUID() },
+			{
+				secret: this.config.get<string>('JWT_SECRET'),
+				expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '15m'),
+			},
+		)
 	}
 
-	private async saveRefreshToken(userId: string, token: string) {
-		const expiresAt = new Date()
-		expiresAt.setDate(expiresAt.getDate() + 30)
-
-		await this.prisma.refreshToken.create({
-			data: { userId, token, expiresAt },
-		})
+	private async generateRefreshToken(userId: string, email: string, role: string) {
+		return this.jwt.signAsync(
+			{ sub: userId, email, role, jti: randomUUID() },
+			{
+				secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+				expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '30d'),
+			},
+		)
 	}
 
 	private sanitizeUser(user: any) {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { password, refreshTokens, ...safe } = user
+		const { password, ...safe } = user
 		return safe
 	}
 }
