@@ -377,7 +377,7 @@ export default function ServiceDetailPage() {
 
 							<Link
 								to='/dashboard'
-								search={{ tab: 'messages' }}
+								search={{ tab: 'messages', partnerId: service.freelancerId }}
 								className='w-full mt-3 py-3 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2'
 							>
 								<MessageSquare className='w-4 h-4' />

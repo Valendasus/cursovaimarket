@@ -375,9 +375,11 @@ function InlineChatContent({
 function MessagesTab({
 	currentUserId,
 	userRole,
+	initialPartnerId,
 }: {
 	currentUserId: string
 	userRole: string
+	initialPartnerId?: string
 }) {
 	const { data: orders = [], isLoading } = useQuery({
 		queryKey: ['my-orders'],
@@ -390,11 +392,38 @@ function MessagesTab({
 		refetchInterval: 15000,
 	})
 
-	const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-	const selectedOrder = orders.find(o => o.id === selectedOrderId)
-
 	const counterpart = (order: Order) =>
 		userRole === 'student' ? order.freelancer : order.student
+
+	const findOrderIdByPartnerId = (
+		list: Order[],
+		partnerId: string,
+	): string | null => {
+		const match = list.find(o =>
+			userRole === 'student'
+				? o.freelancerId === partnerId
+				: o.studentId === partnerId,
+		)
+		return match?.id ?? null
+	}
+
+	const [selectedOrderId, setSelectedOrderId] = useState<string | null>(
+		initialPartnerId
+			? null // will be set in effect after orders load
+			: null,
+	)
+
+	useEffect(() => {
+		if (initialPartnerId && orders.length > 0) {
+			setSelectedOrderId(prev => {
+				if (prev !== null) return prev
+				return findOrderIdByPartnerId(orders, initialPartnerId)
+			})
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [orders.length])
+
+	const selectedOrder = orders.find(o => o.id === selectedOrderId)
 
 	return (
 		<div className='glass-card rounded-2xl overflow-hidden'>
@@ -1306,6 +1335,7 @@ function SettingsTab() {
 export default function DashboardPage() {
 	const { user, logout } = useAuthStore()
 	const search = useSearch({ from: '/dashboard' })
+	const initialPartnerId = search.partnerId
 	const [activeTab, setActiveTab] = useState<TabId>(
 		(
 			['orders', 'services', 'messages', 'reviews', 'settings'] as TabId[]
@@ -1531,7 +1561,11 @@ export default function DashboardPage() {
 									exit={{ opacity: 0, y: -8 }}
 									transition={{ duration: 0.2 }}
 								>
-									<MessagesTab currentUserId={user.id} userRole={user.role} />
+									<MessagesTab
+										currentUserId={user.id}
+										userRole={user.role}
+										initialPartnerId={initialPartnerId}
+									/>
 								</motion.div>
 							)}
 

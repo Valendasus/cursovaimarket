@@ -65,9 +65,12 @@ const registerRoute = createRoute({
 const dashboardRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/dashboard',
-	validateSearch: (search: Record<string, unknown>): { tab?: string } => {
-		const result: { tab?: string } = {}
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { tab?: string; partnerId?: string } => {
+		const result: { tab?: string; partnerId?: string } = {}
 		if (search.tab) result.tab = String(search.tab)
+		if (search.partnerId) result.partnerId = String(search.partnerId)
 		return result
 	},
 	beforeLoad: () => {
