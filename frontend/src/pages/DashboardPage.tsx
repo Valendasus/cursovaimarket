@@ -80,7 +80,6 @@ const STATUS_COLOR: Record<string, string> = {
 function OrderCard({
 	order,
 	role,
-	currentUserId: _currentUserId,
 }: {
 	order: Order
 	role: 'student' | 'freelancer' | string
@@ -1353,7 +1352,7 @@ export default function DashboardPage() {
 											className='w-full h-full rounded-full object-cover'
 										/>
 									) : (
-										getInitials(user.name)
+										user.name.charAt(0).toUpperCase()
 									)}
 								</div>
 								<h2 className='font-semibold text-foreground'>{user.name}</h2>
