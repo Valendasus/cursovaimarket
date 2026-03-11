@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { OrderStatus } from '@prisma/client'
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator'
+import {
+	IsEnum,
+	IsNotEmpty,
+	IsOptional,
+	IsString,
+	MaxLength,
+} from 'class-validator'
 
 export class CreateOrderDto {
 	@ApiProperty({ description: 'ID пакета услуги' })
@@ -8,9 +14,10 @@ export class CreateOrderDto {
 	@IsNotEmpty()
 	packageId: string
 
-	@ApiPropertyOptional({ example: 'Требования к заказу...' })
+	@ApiPropertyOptional({ example: 'Требования к заказу...', maxLength: 2000 })
 	@IsOptional()
 	@IsString()
+	@MaxLength(2000)
 	requirements?: string
 }
 

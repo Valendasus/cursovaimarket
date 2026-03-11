@@ -5,13 +5,25 @@ import {
 	IsEnum,
 	IsNotEmpty,
 	IsString,
+	Matches,
+	MaxLength,
 	MinLength,
 } from 'class-validator'
 
 export class RegisterDto {
-	@ApiProperty({ example: 'ivan_ivanov', description: 'Никнейм пользователя' })
+	@ApiProperty({
+		example: 'ivan_ivanov',
+		description: 'Никнейм пользователя',
+		minLength: 2,
+		maxLength: 50,
+	})
 	@IsString()
 	@IsNotEmpty()
+	@MinLength(2, { message: 'Имя минимум 2 символа' })
+	@MaxLength(50, { message: 'Имя максимум 50 символов' })
+	@Matches(/^[\u0400-\u04ffa-zA-Z0-9_\-\s]+$/, {
+		message: 'Имя содержит недопустимые символы',
+	})
 	name: string
 
 	@ApiProperty({ example: 'ivan@example.com' })
@@ -21,6 +33,7 @@ export class RegisterDto {
 	@ApiProperty({ example: 'password123', minLength: 8, maxLength: 72 })
 	@IsString()
 	@MinLength(8, { message: 'Пароль минимум 8 символов' })
+	@MaxLength(72, { message: 'Пароль максимум 72 символа' })
 	password: string
 
 	@ApiProperty({ enum: UserRole, default: UserRole.STUDENT })

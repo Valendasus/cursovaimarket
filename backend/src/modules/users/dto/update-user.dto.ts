@@ -1,12 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { UserRole } from '@prisma/client'
+import { ServiceCategory, UserRole } from '@prisma/client'
 import {
 	IsArray,
 	IsEnum,
 	IsOptional,
 	IsString,
 	IsUrl,
+	Matches,
 	MaxLength,
+	MinLength,
 } from 'class-validator'
 
 export class UpdateUserDto {
@@ -16,6 +18,8 @@ export class UpdateUserDto {
 	})
 	@IsOptional()
 	@IsString()
+	@MinLength(2, { message: 'Имя минимум 2 символа' })
+	@MaxLength(50, { message: 'Имя максимум 50 символов' })
 	name?: string
 
 	@ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
@@ -31,15 +35,24 @@ export class UpdateProfileDto {
 	@MaxLength(500)
 	bio?: string
 
-	@ApiPropertyOptional({ example: 'https://t.me/username' })
+	@ApiPropertyOptional({
+		example: '@username',
+		description: 'Telegram username (без ссылки, начиная с @)',
+	})
 	@IsOptional()
 	@IsString()
+	@Matches(/^@?[A-Za-z0-9_]{3,32}$/, {
+		message: 'Telegram: допустимы латиница, цифры и _, 3–32 символа',
+	})
 	telegram?: string
 
-	@ApiPropertyOptional()
+	@ApiPropertyOptional({ enum: ServiceCategory, isArray: true })
 	@IsOptional()
 	@IsArray()
-	@IsString({ each: true })
+	@IsEnum(ServiceCategory, {
+		each: true,
+		message: 'Неверная категория специализации',
+	})
 	specializations?: string[]
 }
 

@@ -16,14 +16,15 @@ import {
 } from 'class-validator'
 
 export class CreatePackageDto {
-	@ApiProperty({ example: 'Базовый' })
+	@ApiProperty({ example: 'Базовый', maxLength: 100 })
 	@IsString()
 	@IsNotEmpty()
+	@MaxLength(100)
 	name: string
 
-	@ApiProperty({ example: 50000, description: 'Цена в копейках' })
+	@ApiProperty({ example: 50000, description: 'Цена в копейках (минимум 1)' })
 	@IsInt()
-	@Min(0)
+	@Min(1)
 	price: number
 
 	@ApiProperty({ example: 3, description: 'Срок выполнения в днях' })
@@ -57,9 +58,10 @@ export class CreateServiceDto {
 	@MaxLength(100)
 	title: string
 
-	@ApiProperty({ example: 'Полное описание услуги...' })
+	@ApiProperty({ example: 'Полное описание услуги...', maxLength: 5000 })
 	@IsString()
 	@IsNotEmpty()
+	@MaxLength(5000)
 	description: string
 
 	@ApiProperty({ enum: ServiceCategory })

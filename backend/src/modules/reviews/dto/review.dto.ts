@@ -5,6 +5,7 @@ import {
 	IsOptional,
 	IsString,
 	Max,
+	MaxLength,
 	Min,
 } from 'class-validator'
 
@@ -20,8 +21,9 @@ export class CreateReviewDto {
 	@Max(5)
 	rating: number
 
-	@ApiPropertyOptional()
+	@ApiPropertyOptional({ maxLength: 1000 })
 	@IsOptional()
 	@IsString()
+	@MaxLength(1000)
 	comment?: string
 }
