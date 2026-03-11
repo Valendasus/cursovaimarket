@@ -2,6 +2,7 @@ import { getFreelancerById, getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
 import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { SERVICE_CATEGORIES } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
@@ -16,9 +17,7 @@ import {
 } from 'lucide-react'
 
 export default function FreelancerPage() {
-	const { freelancerId } = useParams({ strict: false }) as {
-		freelancerId: string
-	}
+	const { freelancerId } = useParams({ from: '/freelancers/$freelancerId' })
 	const { user } = useAuthStore()
 
 	const { data: freelancer, isLoading: loadingFreelancer } = useQuery({
@@ -29,13 +28,13 @@ export default function FreelancerPage() {
 
 	const { data: servicesData, isLoading: loadingServices } = useQuery({
 		queryKey: ['freelancer-services', freelancerId],
-		queryFn: () => getServices({ freelancerId }),
+		queryFn: () => getServices({ freelancerId, limit: 100 }),
 		enabled: !!freelancerId,
 	})
 
 	if (loadingFreelancer) {
 		return (
-			<div className='min-h-screen bg-background container-custom py-10'>
+			<div className='min-h-screen bg-background container-custom pt-24 pb-10'>
 				<div className='h-64 bg-muted/50 rounded-2xl animate-pulse mb-6' />
 				<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -129,7 +128,7 @@ export default function FreelancerPage() {
 							)}
 							{freelancer.telegram && (
 								<a
-									href={`https://t.me/${freelancer.telegram.replace('@', '')}`}
+									href={`https://t.me/${freelancer.telegram.replace(/^@/, '')}`}
 									target='_blank'
 									rel='noopener noreferrer'
 									className='w-full mt-2 py-2.5 rounded-xl bg-[#229ED9] text-white text-sm font-medium hover:bg-[#1a8bc4] transition-colors flex items-center justify-center gap-2'
@@ -173,7 +172,9 @@ export default function FreelancerPage() {
 											key={spec}
 											className='text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground'
 										>
-											{spec}
+											{SERVICE_CATEGORIES[
+												spec as keyof typeof SERVICE_CATEGORIES
+											] || spec}
 										</span>
 									))}
 								</div>
