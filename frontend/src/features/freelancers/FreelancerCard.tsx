@@ -2,9 +2,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getInitials } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
 import type { FreelancerProfile } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { CheckCircle, Clock, MessageCircle, Star } from 'lucide-react'
 
@@ -17,16 +18,24 @@ export default function FreelancerCard({
 	freelancer,
 	index = 0,
 }: FreelancerCardProps) {
+	const { user } = useAuthStore()
+	const navigate = useNavigate()
+	const isOwnCard = user?.id === freelancer.id
+
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.4, delay: index * 0.07 }}
 		>
-			<Link
-				to='/freelancers/$freelancerId'
-				params={{ freelancerId: freelancer.id }}
-				className='block group'
+			<div
+				className='block group cursor-pointer'
+				onClick={() =>
+					navigate({
+						to: '/freelancers/$freelancerId',
+						params: { freelancerId: freelancer.id },
+					})
+				}
 			>
 				<div className='rounded-2xl border border-border bg-card p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300'>
 					{/* Header */}
@@ -99,20 +108,35 @@ export default function FreelancerCard({
 
 					{/* CTA */}
 					<div className='flex gap-2'>
-						<Button size='sm' className='flex-1'>
+					<Button size='sm' className='flex-1' asChild>
+						<Link
+							to='/freelancers/$freelancerId'
+							params={{ freelancerId: freelancer.id }}
+							onClick={e => e.stopPropagation()}
+						>
 							Услуги
-						</Button>
+						</Link>
+					</Button>
+					{!isOwnCard && (
 						<Button
 							size='sm'
 							variant='outline'
 							className='flex items-center gap-1'
+							asChild
 						>
-							<MessageCircle className='h-3.5 w-3.5' />
-							Чат
+							<Link
+								to='/dashboard'
+								search={{ tab: 'messages', partnerId: freelancer.id }}
+								onClick={e => e.stopPropagation()}
+							>
+								<MessageCircle className='h-3.5 w-3.5' />
+								Чат
+							</Link>
 						</Button>
-					</div>
+					)}
 				</div>
-			</Link>
+			</div>
+		</div>
 		</motion.div>
 	)
 }

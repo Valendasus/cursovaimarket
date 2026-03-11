@@ -67,20 +67,61 @@ export default function FreelancersPage() {
 
 				{/* Pagination */}
 				{totalPages > 1 && (
-					<div className='flex justify-center gap-2 mt-10'>
-						{Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-							<button
-								key={p}
-								onClick={() => setPage(p)}
-								className={`w-9 h-9 rounded-xl text-sm font-medium transition-colors ${
-									p === page
-										? 'bg-primary text-primary-foreground'
-										: 'bg-muted text-foreground hover:bg-muted/70'
-								}`}
-							>
-								{p}
-							</button>
-						))}
+					<div className='flex justify-center items-center gap-2 mt-10'>
+						<button
+							onClick={() => setPage(p => Math.max(1, p - 1))}
+							disabled={page === 1}
+							className='w-9 h-9 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/70 disabled:opacity-40 transition-colors'
+						>
+							←
+						</button>
+
+						{(() => {
+							const delta = 2
+							const range: (number | '...')[] = []
+							let prev = 0
+							for (let p = 1; p <= totalPages; p++) {
+								if (
+									p === 1 ||
+									p === totalPages ||
+									(p >= page - delta && p <= page + delta)
+								) {
+									if (prev && p - prev > 1) range.push('...')
+									range.push(p)
+									prev = p
+								}
+							}
+							return range.map((p, i) =>
+								p === '...' ? (
+									<span
+										key={`ellipsis-${i}`}
+										className='w-9 h-9 flex items-center justify-center text-muted-foreground text-sm'
+									>
+										···
+									</span>
+								) : (
+									<button
+										key={p}
+										onClick={() => setPage(p as number)}
+										className={`w-9 h-9 rounded-xl text-sm font-medium transition-colors ${
+											p === page
+												? 'bg-primary text-primary-foreground'
+												: 'bg-muted text-foreground hover:bg-muted/70'
+										}`}
+									>
+										{p}
+									</button>
+								),
+							)
+						})()}
+
+						<button
+							onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+							disabled={page >= totalPages}
+							className='w-9 h-9 rounded-xl text-sm font-medium bg-muted text-foreground hover:bg-muted/70 disabled:opacity-40 transition-colors'
+						>
+							→
+						</button>
 					</div>
 				)}
 			</div>

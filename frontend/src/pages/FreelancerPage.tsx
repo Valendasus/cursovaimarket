@@ -151,7 +151,7 @@ export default function FreelancerPage() {
 								)}
 								<div className='flex items-center gap-2 text-muted-foreground'>
 									<Clock className='w-4 h-4 shrink-0' />
-									Срок: от {freelancer.responseTime}
+									Время ответа: {freelancer.responseTime}
 								</div>
 								{freelancer.isVerified && (
 									<div className='flex items-center gap-2 text-muted-foreground'>
