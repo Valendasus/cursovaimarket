@@ -157,7 +157,7 @@ export class AuthService {
 			{ sub: userId, email, role, name, jti: randomUUID() },
 			{
 				secret: this.config.get<string>('JWT_SECRET'),
-				expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '15m'),
+				expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '15m') as any,
 			},
 		)
 	}
@@ -172,7 +172,7 @@ export class AuthService {
 			{ sub: userId, email, role, name, jti: randomUUID() },
 			{
 				secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-				expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '30d'),
+				expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '30d') as any,
 			},
 		)
 	}
