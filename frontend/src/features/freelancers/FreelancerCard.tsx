@@ -7,7 +7,7 @@ import type { FreelancerProfile } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import { CheckCircle, Clock, MessageCircle, Star } from 'lucide-react'
+import { CheckCircle, Clock, MessageCircle, Send, Star } from 'lucide-react'
 
 interface FreelancerCardProps {
 	freelancer: FreelancerProfile
@@ -134,6 +134,23 @@ export default function FreelancerCard({
 									<MessageCircle className='h-3.5 w-3.5' />
 									Чат
 								</Link>
+							</Button>
+						)}
+						{!isOwnCard && freelancer.telegram && (
+							<Button
+								size='sm'
+								variant='outline'
+								className='flex items-center gap-1 text-[#229ED9] border-[#229ED9]/30 hover:bg-[#229ED9]/10 hover:text-[#229ED9]'
+								asChild
+							>
+								<a
+									href={`https://t.me/${freelancer.telegram.replace(/^@/, '')}`}
+									target='_blank'
+									rel='noopener noreferrer'
+									onClick={e => e.stopPropagation()}
+								>
+									<Send className='h-3.5 w-3.5' />
+								</a>
 							</Button>
 						)}
 					</div>

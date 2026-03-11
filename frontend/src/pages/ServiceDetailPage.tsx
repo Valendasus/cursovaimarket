@@ -404,7 +404,7 @@ export default function ServiceDetailPage() {
 							)}
 							{service.freelancer?.telegram && (
 								<a
-									href={`https://t.me/${service.freelancer.telegram.replace('@', '')}`}
+									href={`https://t.me/${service.freelancer.telegram.replace(/^@/, '')}`}
 									target='_blank'
 									rel='noopener noreferrer'
 									className='w-full mt-2 py-3 rounded-xl bg-[#229ED9] text-white text-sm font-medium hover:bg-[#1a8bc4] transition-colors flex items-center justify-center gap-2'
