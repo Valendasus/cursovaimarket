@@ -53,7 +53,11 @@ export function mapUser(u: BackendUser): User | FreelancerProfile {
 		} as FreelancerProfile
 	}
 
-	return base
+	return {
+		...base,
+		bio: u.profile?.bio,
+		telegram: u.profile?.telegram,
+	}
 }
 
 export async function loginApi(email: string, password: string) {

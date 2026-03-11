@@ -11,7 +11,10 @@ import { z } from 'zod'
 
 const loginSchema = z.object({
 	email: z.string().email('Введите корректный email'),
-	password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
+	password: z
+		.string()
+		.min(8, 'Пароль должен содержать минимум 8 символов')
+		.max(72, 'Пароль не должен превышать 72 символа'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -32,10 +35,11 @@ export default function LoginPage() {
 			const result = await loginApi(data.email, data.password)
 			setUser(result.user, result.accessToken)
 			toast.success('Добро пожаловать!')
-			await navigate({ to: redirect ?? '/' })
+			const safePath = redirect && redirect.startsWith('/') ? redirect : '/'
+			await navigate({ to: safePath })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Неверный email или пароль')
-			setError('email', { message: msg })
+			setError('root', { message: msg })
 		}
 	}
 
@@ -76,6 +80,7 @@ export default function LoginPage() {
 								<input
 									{...register('email')}
 									type='email'
+									autoComplete='email'
 									placeholder='you@example.com'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -96,6 +101,7 @@ export default function LoginPage() {
 								<input
 									{...register('password')}
 									type='password'
+									autoComplete='current-password'
 									placeholder='••••••••'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -106,6 +112,12 @@ export default function LoginPage() {
 								</p>
 							)}
 						</div>
+
+						{errors.root && (
+							<p className='text-destructive text-sm text-center bg-destructive/10 rounded-lg px-3 py-2'>
+								{errors.root.message}
+							</p>
+						)}
 
 						<button
 							type='submit'

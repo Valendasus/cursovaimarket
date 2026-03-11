@@ -12,9 +12,19 @@ import { z } from 'zod'
 
 const registerSchema = z
 	.object({
-		name: z.string().min(2, 'Никнейм должен содержать минимум 2 символа'),
+		name: z
+			.string()
+			.min(2, 'Никнейм должен содержать минимум 2 символа')
+			.max(50, 'Никнейм не должен превышать 50 символов')
+			.regex(
+				/^[\u0400-\u04FFa-zA-Z0-9_\-\s]+$/,
+				'Допустимы: буквы, цифры, _, -',
+			),
 		email: z.string().email('Введите корректный email'),
-		password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
+		password: z
+			.string()
+			.min(8, 'Пароль должен содержать минимум 8 символов')
+			.max(72, 'Пароль не должен превышать 72 символа'),
 		confirmPassword: z.string(),
 	})
 	.refine(d => d.password === d.confirmPassword, {
@@ -28,6 +38,7 @@ export default function RegisterPage() {
 	const [role, setRole] = useState<'student' | 'freelancer'>('student')
 	const { setUser } = useAuthStore()
 	const navigate = useNavigate()
+	const { redirect } = useSearch({ strict: false }) as { redirect?: string }
 
 	const {
 		register,
@@ -47,14 +58,11 @@ export default function RegisterPage() {
 			)
 			setUser(result.user, result.accessToken)
 			toast.success('Аккаунт создан! Добро пожаловать 🎉')
-			await navigate({ to: '/' })
+			const safePath = redirect && redirect.startsWith('/') ? redirect : '/'
+			await navigate({ to: safePath })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Ошибка регистрации')
-			if (msg.includes('никнеймом')) {
-				setError('name', { message: msg })
-			} else {
-				setError('email', { message: msg })
-			}
+			setError('root', { message: msg })
 		}
 	}
 
@@ -113,6 +121,7 @@ export default function RegisterPage() {
 								<User className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
 								<input
 									{...register('name')}
+									autoComplete='username'
 									placeholder='ivan_ivanov'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -134,6 +143,7 @@ export default function RegisterPage() {
 								<input
 									{...register('email')}
 									type='email'
+									autoComplete='email'
 									placeholder='you@example.com'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -155,6 +165,7 @@ export default function RegisterPage() {
 								<input
 									{...register('password')}
 									type='password'
+									autoComplete='new-password'
 									placeholder='••••••••'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -176,6 +187,7 @@ export default function RegisterPage() {
 								<input
 									{...register('confirmPassword')}
 									type='password'
+									autoComplete='new-password'
 									placeholder='••••••••'
 									className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								/>
@@ -186,6 +198,12 @@ export default function RegisterPage() {
 								</p>
 							)}
 						</div>
+
+						{errors.root && (
+							<p className='text-destructive text-sm text-center bg-destructive/10 rounded-lg px-3 py-2'>
+								{errors.root.message}
+							</p>
+						)}
 
 						<button
 							type='submit'
