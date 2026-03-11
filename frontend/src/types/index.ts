@@ -8,6 +8,8 @@ export interface User {
 	name: string
 	avatar?: string
 	role: UserRole
+	bio?: string
+	telegram?: string
 	createdAt: string
 }
 

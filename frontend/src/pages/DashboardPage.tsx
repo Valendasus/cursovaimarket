@@ -7,7 +7,7 @@ import {
 import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
 import { getMyOrders, updateOrderStatus } from '@/api/orders'
-import { getMyReviews, getReceivedReviews } from '@/api/reviews'
+import { createReview, getMyReviews, getReceivedReviews } from '@/api/reviews'
 import type { CreateServicePayload } from '@/api/services'
 import { createService, deleteService, getMyServices } from '@/api/services'
 import { useChatSocket } from '@/hooks/useChatSocket'
@@ -89,6 +89,13 @@ function OrderCard({
 	const queryClient = useQueryClient()
 	const [statusError, setStatusError] = useState('')
 
+	// Review form state
+	const [showReview, setShowReview] = useState(false)
+	const [reviewRating, setReviewRating] = useState(5)
+	const [reviewComment, setReviewComment] = useState('')
+	const [reviewError, setReviewError] = useState('')
+	const [reviewHover, setReviewHover] = useState(0)
+
 	const { mutate: changeStatus, isPending } = useMutation({
 		mutationFn: (status: string) => updateOrderStatus(order.id, status),
 		onSuccess: () => {
@@ -97,6 +104,20 @@ function OrderCard({
 		},
 		onError: (err: unknown) => {
 			setStatusError(extractApiError(err, 'Не удалось изменить статус'))
+		},
+	})
+
+	const { mutate: submitReview, isPending: reviewPending } = useMutation({
+		mutationFn: () =>
+			createReview(order.id, reviewRating, reviewComment || undefined),
+		onSuccess: () => {
+			setReviewError('')
+			setShowReview(false)
+			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+			queryClient.invalidateQueries({ queryKey: ['my-reviews'] })
+		},
+		onError: (err: unknown) => {
+			setReviewError(extractApiError(err, 'Не удалось отправить отзыв'))
 		},
 	})
 
@@ -252,6 +273,28 @@ function OrderCard({
 					</>
 				)}
 
+				{/* Leave review: student + completed + no review yet */}
+				{role === 'student' &&
+					order.status === 'completed' &&
+					!order.review &&
+					!showReview && (
+						<button
+							onClick={() => setShowReview(true)}
+							className='text-xs px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 transition-colors font-medium flex items-center gap-1'
+						>
+							<Star className='w-3 h-3' />
+							Оставить отзыв
+						</button>
+					)}
+
+				{/* Review already left badge */}
+				{role === 'student' && order.status === 'completed' && order.review && (
+					<div className='flex items-center gap-1 text-xs text-muted-foreground'>
+						<Star className='w-3 h-3 fill-yellow-400 text-yellow-400' />
+						<span>Отзыв оставлен ({order.review.rating}/5)</span>
+					</div>
+				)}
+
 				{/* Chat link — opens Messages tab with this partner */}
 				<Link
 					to='/dashboard'
@@ -266,6 +309,63 @@ function OrderCard({
 					Написать
 				</Link>
 			</div>
+
+			{/* Inline review form */}
+			{showReview && (
+				<div className='mt-3 pt-3 border-t border-border/50 space-y-2'>
+					<p className='text-xs font-medium text-foreground'>Ваша оценка</p>
+					<div className='flex gap-1'>
+						{[1, 2, 3, 4, 5].map(n => (
+							<button
+								key={n}
+								type='button'
+								onMouseEnter={() => setReviewHover(n)}
+								onMouseLeave={() => setReviewHover(0)}
+								onClick={() => setReviewRating(n)}
+							>
+								<Star
+									className={`w-5 h-5 transition-colors ${
+										n <= (reviewHover || reviewRating)
+											? 'text-yellow-400 fill-yellow-400'
+											: 'text-muted-foreground/30'
+									}`}
+								/>
+							</button>
+						))}
+					</div>
+					<textarea
+						value={reviewComment}
+						onChange={e => setReviewComment(e.target.value)}
+						placeholder='Комментарий (необязательно)'
+						rows={2}
+						maxLength={500}
+						className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition resize-none'
+					/>
+					{reviewError && (
+						<p className='text-xs text-destructive'>{reviewError}</p>
+					)}
+					<div className='flex gap-2'>
+						<button
+							type='button'
+							onClick={() => submitReview()}
+							disabled={reviewPending}
+							className='text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors font-medium'
+						>
+							{reviewPending ? 'Отправляем...' : 'Отправить отзыв'}
+						</button>
+						<button
+							type='button'
+							onClick={() => {
+								setShowReview(false)
+								setReviewError('')
+							}}
+							className='text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors'
+						>
+							Отмена
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
@@ -1232,10 +1332,8 @@ function ReviewsTab({ role }: { role: string }) {
 function SettingsTab() {
 	const { user, updateUser } = useAuthStore()
 	const [name, setName] = useState(user?.name ?? '')
-	const [bio, setBio] = useState((user as { bio?: string })?.bio ?? '')
-	const [telegram, setTelegram] = useState(
-		(user as { telegram?: string })?.telegram ?? '',
-	)
+	const [bio, setBio] = useState(user?.bio ?? '')
+	const [telegram, setTelegram] = useState(user?.telegram ?? '')
 	const [saving, setSaving] = useState(false)
 	const [saved, setSaved] = useState(false)
 	const [error, setError] = useState('')
@@ -1258,8 +1356,9 @@ function SettingsTab() {
 				role: (updated as { role: string }).role as 'student' | 'freelancer',
 			})
 			setRoleConfirm(false)
-			// Reload so sidebar tabs and all role-dependent UI refresh
-			window.location.href = '/dashboard'
+			// Small delay so store update propagates before navigation
+			await new Promise(r => setTimeout(r, 50))
+			window.location.replace('/dashboard')
 		} catch (err: unknown) {
 			setRoleError(extractApiError(err, 'Не удалось сменить роль'))
 		} finally {
@@ -1283,7 +1382,13 @@ function SettingsTab() {
 					telegram: telegram.trim() || undefined,
 				})
 			}
-			updateUser({ name: name.trim() })
+			updateUser({
+				name: name.trim(),
+				...(isFreelancer && {
+					bio: bio.trim() || undefined,
+					telegram: telegram.trim() || undefined,
+				}),
+			})
 			setSaved(true)
 			setTimeout(() => setSaved(false), 3000)
 		} catch (err: unknown) {
@@ -1451,6 +1556,7 @@ export default function DashboardPage() {
 			? (search.tab as TabId)
 			: 'orders',
 	)
+	const [ordersLimit, setOrdersLimit] = useState(10)
 
 	const { data: orders = [], isLoading: ordersLoading } = useQuery({
 		queryKey: ['my-orders'],
@@ -1627,7 +1733,7 @@ export default function DashboardPage() {
 											</div>
 										) : (
 											<div className='space-y-3'>
-												{orders.slice(0, 10).map(order => (
+												{orders.slice(0, ordersLimit).map(order => (
 													<OrderCard
 														key={order.id}
 														order={order}
@@ -1635,6 +1741,15 @@ export default function DashboardPage() {
 														currentUserId={user.id}
 													/>
 												))}
+												{orders.length > ordersLimit && (
+													<button
+														onClick={() => setOrdersLimit(l => l + 10)}
+														className='w-full py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors'
+													>
+														Показать ещё ({orders.length - ordersLimit} из{' '}
+														{orders.length})
+													</button>
+												)}
 											</div>
 										)}
 									</div>
