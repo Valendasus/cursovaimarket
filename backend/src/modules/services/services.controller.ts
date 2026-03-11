@@ -49,7 +49,8 @@ export class ServicesController {
 	}
 
 	@Patch(':id')
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Обновить услугу' })
 	update(
@@ -61,7 +62,8 @@ export class ServicesController {
 	}
 
 	@Delete(':id')
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Удалить услугу' })
 	remove(@Param('id') id: string, @CurrentUser('id') userId: string) {

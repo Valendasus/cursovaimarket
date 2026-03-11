@@ -48,6 +48,7 @@ export class CreatePackageDto {
 	@IsOptional()
 	@IsArray()
 	@IsString({ each: true })
+	@MaxLength(200, { each: true })
 	features?: string[]
 }
 
@@ -81,7 +82,7 @@ export class CreateServiceDto {
 	@ApiPropertyOptional({ type: [String], description: 'URL изображений' })
 	@IsOptional()
 	@IsArray()
-	@IsString({ each: true })
+	@IsUrl({}, { each: true, message: 'Каждый элемент images должен быть URL' })
 	images?: string[]
 
 	@ApiProperty({ type: [CreatePackageDto] })
@@ -102,6 +103,7 @@ export class UpdateServiceDto {
 	@ApiPropertyOptional()
 	@IsOptional()
 	@IsString()
+	@MaxLength(5000)
 	description?: string
 
 	@ApiPropertyOptional({ enum: ServiceCategory })
@@ -123,7 +125,7 @@ export class UpdateServiceDto {
 	@ApiPropertyOptional({ type: [String] })
 	@IsOptional()
 	@IsArray()
-	@IsString({ each: true })
+	@IsUrl({}, { each: true, message: 'Каждый элемент images должен быть URL' })
 	images?: string[]
 }
 
@@ -141,6 +143,7 @@ export class ServiceFiltersDto {
 	@ApiPropertyOptional()
 	@IsOptional()
 	@IsString()
+	@MaxLength(200)
 	search?: string
 
 	@ApiPropertyOptional()
@@ -161,10 +164,11 @@ export class ServiceFiltersDto {
 	@Min(1)
 	page?: number = 1
 
-	@ApiPropertyOptional({ default: 12 })
+	@ApiPropertyOptional({ default: 12, maximum: 100 })
 	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
 	@Min(1)
+	@Max(100)
 	limit?: number = 12
 }
