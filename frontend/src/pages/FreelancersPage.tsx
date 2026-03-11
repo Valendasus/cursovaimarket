@@ -2,18 +2,24 @@ import { getFreelancers } from '@/api/services'
 import FreelancerCard from '@/features/freelancers/FreelancerCard'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Users } from 'lucide-react'
-import { useState } from 'react'
+import { AlertCircle, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const LIMIT = 12
 
 export default function FreelancersPage() {
 	const [page, setPage] = useState(1)
 
-	const { data, isLoading } = useQuery({
+	const { data, isLoading, isError, isFetching } = useQuery({
 		queryKey: ['freelancers', page],
 		queryFn: () => getFreelancers(page, LIMIT),
+		placeholderData: prev => prev,
 	})
+
+	// Scroll to top when page changes
+	useEffect(() => {
+		window.scrollTo({ top: 0, behavior: 'smooth' })
+	}, [page])
 
 	const freelancers = data?.data ?? []
 	const total = data?.total ?? 0
@@ -49,16 +55,25 @@ export default function FreelancersPage() {
 				)}
 
 				{/* Empty */}
-				{!isLoading && freelancers.length === 0 && (
+				{!isLoading && !isError && freelancers.length === 0 && (
 					<div className='flex flex-col items-center justify-center py-32 text-center'>
 						<Users className='w-12 h-12 text-muted-foreground/30 mb-4' />
 						<p className='text-muted-foreground'>Исполнители не найдены</p>
 					</div>
 				)}
 
+				{/* Error */}
+				{isError && (
+					<div className='flex flex-col items-center justify-center py-32 text-center'>
+						<AlertCircle className='w-12 h-12 text-destructive/40 mb-4' />
+						<p className='text-foreground font-medium mb-1'>Не удалось загрузить исполнителей</p>
+						<p className='text-sm text-muted-foreground'>Попробуйте обновить страницу</p>
+					</div>
+				)}
+
 				{/* Grid */}
-				{!isLoading && freelancers.length > 0 && (
-					<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
+				{!isLoading && !isError && freelancers.length > 0 && (
+					<div className={`grid sm:grid-cols-2 xl:grid-cols-3 gap-4 transition-opacity duration-200 ${isFetching ? 'opacity-50' : 'opacity-100'}`}>
 						{freelancers.map((fl, i) => (
 							<FreelancerCard key={fl.id} freelancer={fl} index={i} />
 						))}

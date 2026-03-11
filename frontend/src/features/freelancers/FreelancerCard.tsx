@@ -64,7 +64,9 @@ export default function FreelancerCard({
 							)}
 							<div className='flex items-center gap-1 mt-1'>
 								<Star className='h-3.5 w-3.5 fill-gold-400 text-gold-400' />
-								<span className='text-sm font-bold'>{freelancer.rating}</span>
+								<span className='text-sm font-bold'>
+									{freelancer.rating.toFixed(1)}
+								</span>
 								<span className='text-xs text-muted-foreground'>
 									({freelancer.reviewsCount} отзывов)
 								</span>
@@ -108,35 +110,35 @@ export default function FreelancerCard({
 
 					{/* CTA */}
 					<div className='flex gap-2'>
-					<Button size='sm' className='flex-1' asChild>
-						<Link
-							to='/freelancers/$freelancerId'
-							params={{ freelancerId: freelancer.id }}
-							onClick={e => e.stopPropagation()}
-						>
-							Услуги
-						</Link>
-					</Button>
-					{!isOwnCard && (
-						<Button
-							size='sm'
-							variant='outline'
-							className='flex items-center gap-1'
-							asChild
-						>
+						<Button size='sm' className='flex-1' asChild>
 							<Link
-								to='/dashboard'
-								search={{ tab: 'messages', partnerId: freelancer.id }}
+								to='/freelancers/$freelancerId'
+								params={{ freelancerId: freelancer.id }}
 								onClick={e => e.stopPropagation()}
 							>
-								<MessageCircle className='h-3.5 w-3.5' />
-								Чат
+								Услуги
 							</Link>
 						</Button>
-					)}
+						{!isOwnCard && (
+							<Button
+								size='sm'
+								variant='outline'
+								className='flex items-center gap-1'
+								asChild
+							>
+								<Link
+									to='/dashboard'
+									search={{ tab: 'messages', partnerId: freelancer.id }}
+									onClick={e => e.stopPropagation()}
+								>
+									<MessageCircle className='h-3.5 w-3.5' />
+									Чат
+								</Link>
+							</Button>
+						)}
+					</div>
 				</div>
 			</div>
-		</div>
 		</motion.div>
 	)
 }
