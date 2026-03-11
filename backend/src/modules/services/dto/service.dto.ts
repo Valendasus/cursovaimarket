@@ -10,6 +10,8 @@ import {
 	IsNotEmpty,
 	IsOptional,
 	IsString,
+	IsUrl,
+	Max,
 	MaxLength,
 	Min,
 	ValidateNested,
