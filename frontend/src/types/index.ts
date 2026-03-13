@@ -19,6 +19,7 @@ export interface FreelancerProfile extends User {
 	completedOrders: number
 	specializations: string[]
 	isVerified: boolean
+	telegram?: string
 	responseTime: string // e.g. "~2 часа"
 	location?: string
 }
