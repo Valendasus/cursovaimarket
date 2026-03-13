@@ -2,12 +2,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getInitials } from '@/lib/utils'
-import { useAuthStore } from '@/store/authStore'
 import type { FreelancerProfile } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import { CheckCircle, Clock, MessageCircle, Send, Star } from 'lucide-react'
+import { CheckCircle, Clock, MessageCircle, Star } from 'lucide-react'
 
 interface FreelancerCardProps {
 	freelancer: FreelancerProfile
@@ -18,24 +17,16 @@ export default function FreelancerCard({
 	freelancer,
 	index = 0,
 }: FreelancerCardProps) {
-	const { user } = useAuthStore()
-	const navigate = useNavigate()
-	const isOwnCard = user?.id === freelancer.id
-
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.4, delay: index * 0.07 }}
 		>
-			<div
-				className='block group cursor-pointer'
-				onClick={() =>
-					navigate({
-						to: '/freelancers/$freelancerId',
-						params: { freelancerId: freelancer.id },
-					})
-				}
+			<Link
+				to='/freelancers/$freelancerId'
+				params={{ freelancerId: freelancer.id }}
+				className='block group'
 			>
 				<div className='rounded-2xl border border-border bg-card p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300'>
 					{/* Header */}
@@ -64,9 +55,7 @@ export default function FreelancerCard({
 							)}
 							<div className='flex items-center gap-1 mt-1'>
 								<Star className='h-3.5 w-3.5 fill-gold-400 text-gold-400' />
-								<span className='text-sm font-bold'>
-									{freelancer.rating.toFixed(1)}
-								</span>
+								<span className='text-sm font-bold'>{freelancer.rating}</span>
 								<span className='text-xs text-muted-foreground'>
 									({freelancer.reviewsCount} отзывов)
 								</span>
@@ -114,51 +103,21 @@ export default function FreelancerCard({
 							<Link
 								to='/freelancers/$freelancerId'
 								params={{ freelancerId: freelancer.id }}
-								onClick={e => e.stopPropagation()}
 							>
 								Услуги
 							</Link>
 						</Button>
-						{!isOwnCard && (
-							<Button
-								size='sm'
-								variant='outline'
-								className='flex-1 flex items-center gap-1'
-								asChild
-							>
-								<Link
-									to='/dashboard'
-									search={{ tab: 'messages', partnerId: freelancer.id }}
-									onClick={e => e.stopPropagation()}
-								>
-									<MessageCircle className='h-3.5 w-3.5' />
-									Написать
-								</Link>
-							</Button>
-						)}
+						<Button
+							size='sm'
+							variant='outline'
+							className='flex items-center gap-1'
+						>
+							<MessageCircle className='h-3.5 w-3.5' />
+							Чат
+						</Button>
 					</div>
-					{!isOwnCard && freelancer.telegram && (
-						<div className='mt-2'>
-							<Button
-								size='sm'
-								variant='outline'
-								className='w-full flex items-center gap-1 text-[#229ED9] border-[#229ED9]/30 hover:bg-[#229ED9]/10 hover:text-[#229ED9]'
-								asChild
-							>
-								<a
-									href={`https://t.me/${freelancer.telegram.replace(/^@/, '')}`}
-									target='_blank'
-									rel='noopener noreferrer'
-									onClick={e => e.stopPropagation()}
-								>
-									<Send className='h-3.5 w-3.5' />
-									Написать в Telegram
-								</a>
-							</Button>
-						</div>
-					)}
 				</div>
-			</div>
+			</Link>
 		</motion.div>
 	)
 }

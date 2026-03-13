@@ -1,8 +1,6 @@
 import { getFreelancerById, getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
 import { getInitials } from '@/lib/utils'
-import { useAuthStore } from '@/store/authStore'
-import { SERVICE_CATEGORIES } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
@@ -12,13 +10,13 @@ import {
 	Clock,
 	MapPin,
 	MessageSquare,
-	Send,
 	Star,
 } from 'lucide-react'
 
 export default function FreelancerPage() {
-	const { freelancerId } = useParams({ from: '/freelancers/$freelancerId' })
-	const { user } = useAuthStore()
+	const { freelancerId } = useParams({ strict: false }) as {
+		freelancerId: string
+	}
 
 	const { data: freelancer, isLoading: loadingFreelancer } = useQuery({
 		queryKey: ['freelancer', freelancerId],
@@ -28,13 +26,13 @@ export default function FreelancerPage() {
 
 	const { data: servicesData, isLoading: loadingServices } = useQuery({
 		queryKey: ['freelancer-services', freelancerId],
-		queryFn: () => getServices({ freelancerId, limit: 100 }),
+		queryFn: () => getServices({ freelancerId }),
 		enabled: !!freelancerId,
 	})
 
 	if (loadingFreelancer) {
 		return (
-			<div className='min-h-screen bg-background container-custom pt-24 pb-10'>
+			<div className='min-h-screen bg-background container-custom py-10'>
 				<div className='h-64 bg-muted/50 rounded-2xl animate-pulse mb-6' />
 				<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -65,7 +63,7 @@ export default function FreelancerPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
-			<div className='container-custom pt-24 pb-10'>
+			<div className='container-custom py-10'>
 				<Link
 					to='/services'
 					className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors'
@@ -116,29 +114,10 @@ export default function FreelancerPage() {
 								</div>
 							</div>
 
-							{user?.id !== freelancer.id && (
-								<>
-									<Link
-										to='/dashboard'
-										search={{ tab: 'messages', partnerId: freelancer.id }}
-										className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'
-									>
-										<MessageSquare className='w-4 h-4' />
-										Написать
-									</Link>
-									{freelancer.telegram && (
-										<a
-											href={`https://t.me/${freelancer.telegram.replace(/^@/, '')}`}
-											target='_blank'
-											rel='noopener noreferrer'
-											className='w-full mt-2 py-2.5 rounded-xl bg-[#229ED9] text-white text-sm font-medium hover:bg-[#1a8bc4] transition-colors flex items-center justify-center gap-2'
-										>
-											<Send className='w-4 h-4' />
-											Написать в Telegram
-										</a>
-									)}
-								</>
-							)}
+							<button className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'>
+								<MessageSquare className='w-4 h-4' />
+								Написать
+							</button>
 						</div>
 
 						<div className='glass-card rounded-2xl p-5'>
@@ -152,7 +131,7 @@ export default function FreelancerPage() {
 								)}
 								<div className='flex items-center gap-2 text-muted-foreground'>
 									<Clock className='w-4 h-4 shrink-0' />
-									Время ответа: {freelancer.responseTime}
+									Срок: от {freelancer.responseTime}
 								</div>
 								{freelancer.isVerified && (
 									<div className='flex items-center gap-2 text-muted-foreground'>
@@ -174,9 +153,7 @@ export default function FreelancerPage() {
 											key={spec}
 											className='text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground'
 										>
-											{SERVICE_CATEGORIES[
-												spec as keyof typeof SERVICE_CATEGORIES
-											] || spec}
+											{spec}
 										</span>
 									))}
 								</div>
