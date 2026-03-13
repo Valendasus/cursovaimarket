@@ -103,8 +103,7 @@ export default function Header() {
 									</DropdownMenuItem>
 									<DropdownMenuItem asChild>
 										<Link
-											to='/freelancers/$freelancerId'
-											params={{ freelancerId: user.id }}
+											to={`/freelancers/${user.id}`}
 											className='flex items-center gap-2'
 										>
 											<User className='h-4 w-4' />

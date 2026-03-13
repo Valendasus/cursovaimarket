@@ -23,11 +23,7 @@ export default function FreelancerCard({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.4, delay: index * 0.07 }}
 		>
-			<Link
-				to='/freelancers/$freelancerId'
-				params={{ freelancerId: freelancer.id }}
-				className='block group'
-			>
+			<Link to={`/freelancers/${freelancer.id}`} className='block group'>
 				<div className='rounded-2xl border border-border bg-card p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300'>
 					{/* Header */}
 					<div className='flex items-start gap-4 mb-4'>
@@ -100,12 +96,7 @@ export default function FreelancerCard({
 					{/* CTA */}
 					<div className='flex gap-2'>
 						<Button size='sm' className='flex-1' asChild>
-							<Link
-								to='/freelancers/$freelancerId'
-								params={{ freelancerId: freelancer.id }}
-							>
-								Услуги
-							</Link>
+							<Link to={`/freelancers/${freelancer.id}`}>Услуги</Link>
 						</Button>
 						<Button
 							size='sm'

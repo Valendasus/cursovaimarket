@@ -1,6 +1,6 @@
 import { getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
-import { SERVICE_CATEGORIES, type ServiceCategory } from '@/types'
+import { SERVICE_CATEGORIES } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
@@ -10,9 +10,7 @@ const LEVELS = ['Все', 'Начальный', 'Средний', 'Продви�
 
 export default function ServicesPage() {
 	const [search, setSearch] = useState('')
-	const [activeCategory, setActiveCategory] = useState<ServiceCategory | 'all'>(
-		'all',
-	)
+	const [activeCategory, setActiveCategory] = useState('all')
 	const [activeLevel, setActiveLevel] = useState('Все')
 	const [showFilters, setShowFilters] = useState(false)
 
@@ -20,10 +18,7 @@ export default function ServicesPage() {
 		queryKey: ['services', activeCategory],
 		queryFn: () =>
 			getServices({
-				category:
-					activeCategory === 'all'
-						? undefined
-						: (activeCategory as ServiceCategory),
+				category: activeCategory === 'all' ? undefined : activeCategory,
 			}),
 	})
 
@@ -104,22 +99,17 @@ export default function ServicesPage() {
 								>
 									Все категории
 								</button>
-								{(
-									Object.entries(SERVICE_CATEGORIES) as [
-										ServiceCategory,
-										string,
-									][]
-								).map(([value, label]) => (
+								{SERVICE_CATEGORIES.map(cat => (
 									<button
-										key={value}
-										onClick={() => setActiveCategory(value)}
+										key={cat.value}
+										onClick={() => setActiveCategory(cat.value)}
 										className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-											activeCategory === value
+											activeCategory === cat.value
 												? 'bg-primary text-primary-foreground'
 												: 'text-muted-foreground hover:text-foreground hover:bg-muted'
 										}`}
 									>
-										{label}
+										{cat.label}
 									</button>
 								))}
 							</div>
