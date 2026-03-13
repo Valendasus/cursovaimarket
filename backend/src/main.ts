@@ -27,9 +27,25 @@ async function bootstrap() {
 	app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' })
 
 	// CORS – allow configured origin (mirrors request in dev, locked in prod)
+	const isProd = process.env.NODE_ENV === 'production'
 	const corsOrigin = config.get<string>('CORS_ORIGIN', 'http://localhost:5173')
 	app.enableCors({
-		origin: corsOrigin === '*' ? true : corsOrigin,
+		origin: (
+			origin: string | undefined,
+			callback: (error: Error | null, allow?: boolean) => void,
+		) => {
+			// Allow requests with no origin (like mobile apps or Swagger)
+			if (!origin) return callback(null, true)
+			// In dev: allow any localhost port, in prod: strict check
+			if (!isProd && /^http:\/\/localhost:\d+$/.test(origin)) {
+				return callback(null, true)
+			}
+			// Production: use explicit CORS_ORIGIN env var
+			if (corsOrigin === '*' || origin === corsOrigin) {
+				return callback(null, true)
+			}
+			return callback(new Error('Not allowed by CORS'))
+		},
 		credentials: true,
 		methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
 		allowedHeaders: ['Content-Type', 'Authorization'],
