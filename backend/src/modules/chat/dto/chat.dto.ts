@@ -14,6 +14,12 @@ export class SendMessageDto {
 	content: string
 }
 
+export class CreateConversationDto {
+	@IsString()
+	@IsNotEmpty({ message: 'partnerId обязателен' })
+	partnerId: string
+}
+
 export class GetMessagesDto {
 	@IsOptional()
 	@IsPositive()

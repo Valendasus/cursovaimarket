@@ -3,6 +3,7 @@ import { ServiceCategory, UserRole } from '@prisma/client'
 import {
 	IsArray,
 	IsEnum,
+	IsIn,
 	IsOptional,
 	IsString,
 	IsUrl,
@@ -57,7 +58,12 @@ export class UpdateProfileDto {
 }
 
 export class SwitchRoleDto {
-	@ApiProperty({ enum: UserRole, description: 'Целевая роль' })
-	@IsEnum(UserRole)
+	@ApiProperty({
+		enum: [UserRole.STUDENT, UserRole.FREELANCER],
+		description: 'Целевая роль',
+	})
+	@IsIn([UserRole.STUDENT, UserRole.FREELANCER], {
+		message: 'Допустима только роль STUDENT или FREELANCER',
+	})
 	role: UserRole
 }

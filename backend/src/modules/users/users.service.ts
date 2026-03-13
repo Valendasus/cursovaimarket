@@ -78,6 +78,12 @@ export class UsersService {
 	}
 
 	async switchRole(userId: string, dto: SwitchRoleDto) {
+		if (dto.role !== UserRole.STUDENT && dto.role !== UserRole.FREELANCER) {
+			throw new BadRequestException(
+				'Можно переключаться только между ролями STUDENT и FREELANCER',
+			)
+		}
+
 		const user = await this.prisma.user.findUnique({
 			where: { id: userId },
 			include: { profile: true },

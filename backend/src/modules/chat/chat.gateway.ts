@@ -29,6 +29,7 @@ interface AuthenticatedSocket extends Socket {
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@WebSocketServer()
 	server: Server
+	private readonly eventRateMap = new Map<string, number[]>()
 
 	constructor(
 		private chatService: ChatService,
@@ -48,7 +49,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				return
 			}
 
-			const payload = this.jwtService.verify<{ sub: string; name?: string }>(token)
+			const payload = this.jwtService.verify<{ sub: string; name?: string }>(
+				token,
+			)
 			client.data.userId = payload.sub
 			client.data.userName = payload.name ?? 'Пользователь'
 		} catch {
@@ -58,7 +61,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	}
 
 	handleDisconnect(client: AuthenticatedSocket) {
-		void client
+		for (const key of this.eventRateMap.keys()) {
+			if (key.startsWith(`${client.id}:`)) {
+				this.eventRateMap.delete(key)
+			}
+		}
+	}
+
+	private checkRateLimit(
+		clientId: string,
+		event: 'sendMessage' | 'markRead',
+		limit: number,
+		windowMs: number,
+	) {
+		const now = Date.now()
+		const key = `${clientId}:${event}`
+		const timestamps = this.eventRateMap.get(key) ?? []
+		const recent = timestamps.filter(timestamp => now - timestamp < windowMs)
+
+		if (recent.length >= limit) {
+			throw new WsException('Слишком много запросов, попробуйте чуть позже')
+		}
+
+		recent.push(now)
+		this.eventRateMap.set(key, recent)
 	}
 
 	/** Client joins a conversation room and receives message history */
@@ -71,7 +97,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		if (!conversationId) throw new WsException('conversationId обязателен')
 
 		try {
-			await this.chatService.assertParticipant(conversationId, client.data.userId)
+			await this.chatService.assertParticipant(
+				conversationId,
+				client.data.userId,
+			)
 		} catch {
 			throw new WsException('Нет доступа к этой переписке')
 		}
@@ -95,14 +124,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		@ConnectedSocket() client: AuthenticatedSocket,
 		@MessageBody() data: { conversationId: string; content: string },
 	) {
+		this.checkRateLimit(client.id, 'sendMessage', 20, 10_000)
+
 		const { conversationId, content } = data
 
 		if (!conversationId) throw new WsException('conversationId обязателен')
-		if (!content?.trim()) throw new WsException('Сообщение не может быть пустым')
-		if (content.length > 2000) throw new WsException('Сообщение не может превышать 2000 символов')
+		if (!content?.trim())
+			throw new WsException('Сообщение не может быть пустым')
+		if (content.length > 2000)
+			throw new WsException('Сообщение не может превышать 2000 символов')
 
 		try {
-			await this.chatService.assertParticipant(conversationId, client.data.userId)
+			await this.chatService.assertParticipant(
+				conversationId,
+				client.data.userId,
+			)
 		} catch {
 			throw new WsException('Нет доступа к этой переписке')
 		}
@@ -122,11 +158,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		@ConnectedSocket() client: AuthenticatedSocket,
 		@MessageBody() data: { conversationId: string },
 	) {
+		this.checkRateLimit(client.id, 'markRead', 60, 10_000)
+
 		const { conversationId } = data
 		if (!conversationId) return
 
 		try {
-			await this.chatService.assertParticipant(conversationId, client.data.userId)
+			await this.chatService.assertParticipant(
+				conversationId,
+				client.data.userId,
+			)
 			await this.chatService.markAsRead(conversationId, client.data.userId)
 
 			client.to(`chat:${conversationId}`).emit('messagesRead', {
