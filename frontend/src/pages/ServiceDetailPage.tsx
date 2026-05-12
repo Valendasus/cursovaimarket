@@ -118,9 +118,20 @@ export default function ServiceDetailPage() {
 									{service.level}
 								</span>
 							</div>
-							<h1 className='text-2xl md:text-3xl font-bold text-foreground leading-tight mb-3'>
-								{service.title}
-							</h1>
+							<div className='flex flex-wrap items-center gap-3 mb-3'>
+								<h1 className='text-2xl md:text-3xl font-bold text-foreground leading-tight'>
+									{service.title}
+								</h1>
+								{isOwnService && isFreelancer && (
+									<Link
+										to='/dashboard'
+										search={{ tab: 'services' }}
+										className='inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors'
+									>
+										Редактировать
+									</Link>
+								)}
+							</div>
 							<div className='flex items-center gap-4 text-sm text-muted-foreground'>
 								<span className='flex items-center gap-1'>
 									<Star className='w-4 h-4 text-yellow-400 fill-yellow-400' />

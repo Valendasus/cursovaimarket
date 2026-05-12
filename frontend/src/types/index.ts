@@ -58,6 +58,7 @@ export interface ServicePackage {
 	price: number
 	deliveryDays: number
 	revisions: number
+	description?: string
 	features: string[]
 }
 

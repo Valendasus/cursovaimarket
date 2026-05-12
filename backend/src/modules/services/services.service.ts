@@ -133,10 +133,36 @@ export class ServicesService {
 		if (service.freelancerId !== userId) {
 			throw new ForbiddenException('Нет доступа')
 		}
-		return this.prisma.service.update({
+		const { packages, ...serviceData } = dto
+
+		await this.prisma.$transaction(async tx => {
+			if (Object.keys(serviceData).length > 0) {
+				await tx.service.update({
+					where: { id },
+					data: serviceData,
+				})
+			}
+
+			if (packages && packages.length > 0) {
+				for (const pkg of packages) {
+					const { id: pkgId, ...pkgData } = pkg
+					if (pkgId) {
+						await tx.servicePackage.updateMany({
+							where: { id: pkgId, serviceId: id },
+							data: pkgData,
+						})
+					} else {
+						await tx.servicePackage.create({
+							data: { ...pkgData, serviceId: id },
+						})
+					}
+				}
+			}
+		})
+
+		return this.prisma.service.findUnique({
 			where: { id },
-			data: dto,
-			include: { packages: true },
+			include: { packages: { orderBy: { price: 'asc' } } },
 		})
 	}
 

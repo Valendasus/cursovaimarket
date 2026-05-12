@@ -13,8 +13,13 @@ import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
 import { getMyOrders, updateOrderStatus } from '@/api/orders'
 import { createReview, getMyReviews, getReceivedReviews } from '@/api/reviews'
-import type { CreateServicePayload } from '@/api/services'
-import { createService, deleteService, getMyServices } from '@/api/services'
+import type { CreateServicePayload, UpdateServicePayload } from '@/api/services'
+import {
+	createService,
+	deleteService,
+	getMyServices,
+	updateService,
+} from '@/api/services'
 import { useChatSocket } from '@/hooks/useChatSocket'
 import { useAuthStore } from '@/store/authStore'
 import type {
@@ -26,7 +31,7 @@ import type {
 import { SERVICE_CATEGORIES, SERVICE_LEVELS } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import {
 	Briefcase,
 	Check,
@@ -36,6 +41,7 @@ import {
 	LogOut,
 	MessageCircle,
 	MessageSquare,
+	Pencil,
 	Plus,
 	Send,
 	Settings,
@@ -727,9 +733,11 @@ const LEVEL_OPTIONS: { value: ServiceLevel; label: string }[] = [
 
 function ServiceCard({
 	service,
+	onEdit,
 	onDelete,
 }: {
 	service: Service
+	onEdit: (service: Service) => void
 	onDelete: (id: string) => void
 }) {
 	return (
@@ -758,13 +766,22 @@ function ServiceCard({
 						</p>
 					)}
 				</div>
-				<button
-					onClick={() => onDelete(service.id)}
-					className='shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors'
-					title='Удалить услугу'
-				>
-					<Trash2 className='w-4 h-4' />
-				</button>
+				<div className='flex items-center gap-1'>
+					<button
+						onClick={() => onEdit(service)}
+						className='shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors'
+						title='Редактировать услугу'
+					>
+						<Pencil className='w-4 h-4' />
+					</button>
+					<button
+						onClick={() => onDelete(service.id)}
+						className='shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors'
+						title='Удалить услугу'
+					>
+						<Trash2 className='w-4 h-4' />
+					</button>
+				</div>
 			</div>
 		</div>
 	)
@@ -780,12 +797,17 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 	const [category, setCategory] = useState<ServiceCategory>('informatics')
 	const [level, setLevel] = useState<ServiceLevel>('bachelor')
 	const [tags, setTags] = useState('')
-	// Single basic package
-	const [pkgName, setPkgName] = useState('Базовый')
-	const [pkgPrice, setPkgPrice] = useState('')
-	const [pkgDays, setPkgDays] = useState('')
-	const [pkgRevisions, setPkgRevisions] = useState('1')
-	const [pkgDesc, setPkgDesc] = useState('')
+	const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
+	const [packages, setPackages] = useState([
+		{
+			id: undefined as string | undefined,
+			name: 'Базовый',
+			price: '',
+			deliveryDays: '',
+			revisions: '1',
+			description: '',
+		},
+	])
 	const [formError, setFormError] = useState('')
 
 	const { data: services = [], isLoading } = useQuery({
@@ -825,10 +847,40 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 			queryClient.invalidateQueries({ queryKey: ['popular-services'] })
 			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
 			setShowForm(false)
+			setEditingServiceId(null)
 			resetForm()
 		},
 		onError: (err: unknown) => {
 			setFormError(extractApiError(err, 'Ошибка при создании'))
+		},
+	})
+
+	const { mutate: saveService, isPending: saving } = useMutation({
+		mutationFn: ({
+			id,
+			payload,
+		}: {
+			id: string
+			payload: UpdateServicePayload
+		}) => updateService(id, payload),
+		onSuccess: (_, variables) => {
+			queryClient.invalidateQueries({ queryKey: ['my-services', freelancerId] })
+			queryClient.invalidateQueries({ queryKey: ['services'] })
+			queryClient.invalidateQueries({
+				queryKey: ['freelancer-services', freelancerId],
+			})
+			queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+			queryClient.invalidateQueries({ queryKey: ['popular-services'] })
+			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
+			queryClient.invalidateQueries({
+				queryKey: ['service', variables.id],
+			})
+			setShowForm(false)
+			setEditingServiceId(null)
+			resetForm()
+		},
+		onError: (err: unknown) => {
+			setFormError(extractApiError(err, 'Ошибка при сохранении'))
 		},
 	})
 
@@ -838,11 +890,35 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 		setCategory('informatics')
 		setLevel('bachelor')
 		setTags('')
-		setPkgName('Базовый')
-		setPkgPrice('')
-		setPkgDays('')
-		setPkgRevisions('1')
-		setPkgDesc('')
+		setPackages([
+			{
+				id: undefined,
+				name: 'Базовый',
+				price: '',
+				deliveryDays: '',
+				revisions: '1',
+				description: '',
+			},
+		])
+		setFormError('')
+	}
+
+	function fillFormFromService(service: Service) {
+		setTitle(service.title)
+		setDescription(service.description)
+		setCategory(service.category)
+		setLevel(service.level)
+		setTags(service.tags.join(', '))
+		setPackages(
+			service.packages.map(pkg => ({
+				id: pkg.id,
+				name: pkg.name,
+				price: String(pkg.price),
+				deliveryDays: String(pkg.deliveryDays),
+				revisions: String(pkg.revisions ?? 1),
+				description: pkg.description ?? '',
+			})),
+		)
 		setFormError('')
 	}
 
@@ -851,12 +927,33 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 		setFormError('')
 		if (!title.trim()) return setFormError('Введите название услуги')
 		if (!description.trim()) return setFormError('Введите описание')
-		if (!pkgPrice || isNaN(Number(pkgPrice)) || Number(pkgPrice) <= 0)
-			return setFormError('Введите корректную цену пакета')
-		if (!pkgDays || isNaN(Number(pkgDays)) || Number(pkgDays) <= 0)
-			return setFormError('Введите количество дней')
 
-		submitService({
+		const mappedPackages = packages.map(pkg => ({
+			id: pkg.id,
+			name: pkg.name.trim() || 'Базовый',
+			price: Math.round(Number(pkg.price) * 100),
+			deliveryDays: Number(pkg.deliveryDays),
+			revisions: Number(pkg.revisions) || 1,
+			description: pkg.description.trim() || undefined,
+		}))
+
+		if (
+			mappedPackages.some(
+				pkg => !pkg.price || isNaN(pkg.price) || pkg.price <= 0,
+			)
+		) {
+			return setFormError('Введите корректную цену пакетов')
+		}
+		if (
+			mappedPackages.some(
+				pkg =>
+					!pkg.deliveryDays || isNaN(pkg.deliveryDays) || pkg.deliveryDays <= 0,
+			)
+		) {
+			return setFormError('Введите корректные сроки по пакетам')
+		}
+
+		const payload = {
 			title: title.trim(),
 			description: description.trim(),
 			category: category.toUpperCase(),
@@ -865,16 +962,53 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 				.split(',')
 				.map(t => t.trim())
 				.filter(Boolean),
-			packages: [
-				{
-					name: pkgName.trim() || 'Базовый',
-					price: Math.round(Number(pkgPrice) * 100), // rub → kopecks
-					deliveryDays: Number(pkgDays),
-					revisions: Number(pkgRevisions) || 1,
-					description: pkgDesc.trim() || undefined,
-				},
-			],
-		})
+			packages: mappedPackages,
+		}
+
+		if (editingServiceId) {
+			saveService({ id: editingServiceId, payload })
+			return
+		}
+
+		submitService(payload)
+	}
+
+	function updatePackageField(
+		index: number,
+		field: 'name' | 'price' | 'deliveryDays' | 'revisions' | 'description',
+		value: string,
+	) {
+		setPackages(prev =>
+			prev.map((pkg, i) => (i === index ? { ...pkg, [field]: value } : pkg)),
+		)
+	}
+
+	function addPackage() {
+		setPackages(prev =>
+			prev.length >= 3
+				? prev
+				: [
+						...prev,
+						{
+							id: undefined,
+							name: 'Стандарт',
+							price: '',
+							deliveryDays: '',
+							revisions: '1',
+							description: '',
+						},
+					],
+		)
+	}
+
+	function removePackage(index: number) {
+		setPackages(prev => prev.filter((_, i) => i !== index))
+	}
+
+	function handleEditService(service: Service) {
+		setEditingServiceId(service.id)
+		setShowForm(true)
+		fillFormFromService(service)
 	}
 
 	return (
@@ -884,7 +1018,11 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 					<h2 className='font-semibold text-foreground'>Мои услуги</h2>
 					{!showForm && (
 						<button
-							onClick={() => setShowForm(true)}
+							onClick={() => {
+								setEditingServiceId(null)
+								resetForm()
+								setShowForm(true)
+							}}
 							className='flex items-center gap-2 text-sm px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium'
 						>
 							<Plus className='w-4 h-4' />
@@ -900,12 +1038,13 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 					>
 						<div className='flex items-center justify-between'>
 							<p className='font-medium text-sm text-foreground'>
-								Новая услуга
+								{editingServiceId ? 'Редактирование услуги' : 'Новая услуга'}
 							</p>
 							<button
 								type='button'
 								onClick={() => {
 									setShowForm(false)
+									setEditingServiceId(null)
 									resetForm()
 								}}
 								className='p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground'
@@ -987,74 +1126,120 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 							/>
 						</div>
 
-						{/* Package */}
-						<div className='p-3 rounded-lg border border-dashed border-border space-y-3'>
-							<p className='text-xs font-semibold text-foreground'>
-								Пакет услуги
-							</p>
-							<div className='grid sm:grid-cols-2 gap-3'>
-								<div>
-									<label className='block text-xs text-muted-foreground mb-1'>
-										Название пакета
-									</label>
-									<input
-										value={pkgName}
-										onChange={e => setPkgName(e.target.value)}
-										placeholder='Базовый'
-										className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-									/>
-								</div>
-								<div>
-									<label className='block text-xs text-muted-foreground mb-1'>
-										Цена (₽) <span className='text-destructive'>*</span>
-									</label>
-									<input
-										type='number'
-										min='1'
-										value={pkgPrice}
-										onChange={e => setPkgPrice(e.target.value)}
-										placeholder='3000'
-										className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-									/>
-								</div>
-								<div>
-									<label className='block text-xs text-muted-foreground mb-1'>
-										Срок (дней) <span className='text-destructive'>*</span>
-									</label>
-									<input
-										type='number'
-										min='1'
-										value={pkgDays}
-										onChange={e => setPkgDays(e.target.value)}
-										placeholder='7'
-										className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-									/>
-								</div>
-								<div>
-									<label className='block text-xs text-muted-foreground mb-1'>
-										Правок
-									</label>
-									<input
-										type='number'
-										min='0'
-										value={pkgRevisions}
-										onChange={e => setPkgRevisions(e.target.value)}
-										placeholder='1'
-										className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-									/>
-								</div>
+						{/* Packages */}
+						<div className='space-y-3'>
+							<div className='flex items-center justify-between'>
+								<p className='text-xs font-semibold text-foreground'>
+									Пакеты услуги
+								</p>
+								<button
+									type='button'
+									onClick={addPackage}
+									disabled={packages.length >= 3}
+									className='text-xs font-medium text-primary disabled:opacity-50 hover:underline'
+								>
+									+ Добавить пакет
+								</button>
 							</div>
-							<div>
-								<label className='block text-xs text-muted-foreground mb-1'>
-									Что входит в пакет
-								</label>
-								<input
-									value={pkgDesc}
-									onChange={e => setPkgDesc(e.target.value)}
-									placeholder='Базовый объём работы...'
-									className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-								/>
-							</div>
+
+							{packages.map((pkg, idx) => (
+								<div
+									key={pkg.id ?? idx}
+									className='p-3 rounded-lg border border-dashed border-border space-y-3'
+								>
+									<div className='flex items-center justify-between'>
+										<p className='text-xs font-semibold text-foreground'>
+											Пакет {idx + 1}
+										</p>
+										{!pkg.id && packages.length > 1 && (
+											<button
+												type='button'
+												onClick={() => removePackage(idx)}
+												className='text-xs text-destructive hover:underline'
+											>
+												Удалить
+											</button>
+										)}
+									</div>
+									<div className='grid sm:grid-cols-2 gap-3'>
+										<div>
+											<label className='block text-xs text-muted-foreground mb-1'>
+												Название пакета
+											</label>
+											<input
+												value={pkg.name}
+												onChange={e =>
+													updatePackageField(idx, 'name', e.target.value)
+												}
+												placeholder='Базовый'
+												className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
+											/>
+										</div>
+										<div>
+											<label className='block text-xs text-muted-foreground mb-1'>
+												Цена (₽) <span className='text-destructive'>*</span>
+											</label>
+											<input
+												type='number'
+												min='1'
+												value={pkg.price}
+												onChange={e =>
+													updatePackageField(idx, 'price', e.target.value)
+												}
+												placeholder='3000'
+												className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
+											/>
+										</div>
+										<div>
+											<label className='block text-xs text-muted-foreground mb-1'>
+												Срок (дней) <span className='text-destructive'>*</span>
+											</label>
+											<input
+												type='number'
+												min='1'
+												value={pkg.deliveryDays}
+												onChange={e =>
+													updatePackageField(
+														idx,
+														'deliveryDays',
+														e.target.value,
+													)
+												}
+												placeholder='7'
+												className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
+											/>
+										</div>
+										<div>
+											<label className='block text-xs text-muted-foreground mb-1'>
+												Правок
+											</label>
+											<input
+												type='number'
+												min='0'
+												value={pkg.revisions}
+												onChange={e =>
+													updatePackageField(idx, 'revisions', e.target.value)
+												}
+												placeholder='1'
+												className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
+											/>
+										</div>
+									</div>
+									<div>
+										<label className='block text-xs text-muted-foreground mb-1'>
+											Что входит в пакет
+										</label>
+										<input
+											value={pkg.description}
+											onChange={e =>
+												updatePackageField(idx, 'description', e.target.value)
+											}
+											placeholder='Базовый объём работы...'
+											className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
+										/>
+									</div>
+								</div>
+							))}
 						</div>
 
 						{formError && (
@@ -1064,15 +1249,22 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 						<div className='flex gap-2'>
 							<button
 								type='submit'
-								disabled={creating}
+								disabled={creating || saving}
 								className='flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
 							>
-								{creating ? 'Создаём...' : 'Создать услугу'}
+								{editingServiceId
+									? saving
+										? 'Сохраняем...'
+										: 'Сохранить изменения'
+									: creating
+										? 'Создаём...'
+										: 'Создать услугу'}
 							</button>
 							<button
 								type='button'
 								onClick={() => {
 									setShowForm(false)
+									setEditingServiceId(null)
 									resetForm()
 								}}
 								className='px-5 py-2 rounded-xl border border-border text-sm hover:bg-muted transition-colors'
@@ -1098,7 +1290,11 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 						<p className='text-sm'>У вас ещё нет услуг</p>
 						{!showForm && (
 							<button
-								onClick={() => setShowForm(true)}
+								onClick={() => {
+									setEditingServiceId(null)
+									resetForm()
+									setShowForm(true)
+								}}
 								className='mt-4 text-sm text-primary hover:underline'
 							>
 								Создать первую услугу →
@@ -1111,6 +1307,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 							<ServiceCard
 								key={service.id}
 								service={service}
+								onEdit={handleEditService}
 								onDelete={removeService}
 							/>
 						))}
@@ -1401,6 +1598,7 @@ function SettingsTab() {
 	const targetRole = isFreelancer ? 'STUDENT' : 'FREELANCER'
 	const targetRoleLabel = isFreelancer ? 'Заказчик' : 'Исполнитель'
 	const displayAvatar = avatarPreview ?? avatar
+	const controls = useAnimation()
 
 	useEffect(() => {
 		setName(user?.name ?? '')
@@ -1426,6 +1624,13 @@ function SettingsTab() {
 		setAvatarPreview(url)
 		return () => URL.revokeObjectURL(url)
 	}, [avatarFile])
+
+	const handleClick = async (): Promise<void> => {
+		await controls.start({
+			rotate: [0, 25, -25, 0],
+			transition: { duration: 0.5 },
+		})
+	}
 
 	const handleAvatarFile = (file: File | null) => {
 		if (!file) return
@@ -1698,10 +1903,12 @@ function SettingsTab() {
 
 				{error && <p className='text-xs text-destructive'>{error}</p>}
 
-				<button
+				<motion.button
 					type='submit'
 					disabled={saving}
-					className='flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
+					animate={controls}
+					onClick={handleClick}
+					className='flex items-center gap-2 my-10 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 cursor-pointer disabled:opacity-60 transition-colors'
 				>
 					{saved ? (
 						<>
@@ -1712,7 +1919,7 @@ function SettingsTab() {
 					) : (
 						'Сохранить изменения'
 					)}
-				</button>
+				</motion.button>
 			</form>
 
 			{/* Role switch section */}
@@ -1781,13 +1988,12 @@ export default function DashboardPage() {
 	const { user, logout } = useAuthStore()
 	const search = useSearch({ from: '/dashboard' })
 	const initialPartnerId = search.partnerId
-	const [activeTab, setActiveTab] = useState<TabId>(
-		(
-			['orders', 'services', 'messages', 'reviews', 'settings'] as TabId[]
-		).includes(search.tab as TabId)
-			? (search.tab as TabId)
-			: 'orders',
-	)
+	const initialTab: TabId = (
+		['orders', 'services', 'messages', 'reviews', 'settings'] as TabId[]
+	).includes(search.tab as TabId)
+		? (search.tab as TabId)
+		: 'orders'
+	const [activeTab, setActiveTab] = useState<TabId>(initialTab)
 	const [ordersLimit, setOrdersLimit] = useState(10)
 
 	const { data: orders = [], isLoading: ordersLoading } = useQuery({

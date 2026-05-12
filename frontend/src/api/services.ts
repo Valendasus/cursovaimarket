@@ -25,6 +25,7 @@ interface BackendPackage {
 	price: number
 	deliveryDays: number
 	revisions?: number
+	description?: string
 	features?: string[]
 }
 
@@ -81,6 +82,7 @@ function mapPackage(pkg: BackendPackage): ServicePackage {
 		price: Math.round(pkg.price / 100), // kopecks → rubles
 		deliveryDays: pkg.deliveryDays,
 		revisions: pkg.revisions ?? 1,
+		description: pkg.description,
 		features: pkg.features ?? [],
 	}
 }
@@ -240,6 +242,34 @@ export async function createService(
 	payload: CreateServicePayload,
 ): Promise<Service> {
 	const { data } = await apiClient.post<BackendService>('/v1/services', payload)
+	return mapService(data)
+}
+
+export interface UpdateServicePayload {
+	title?: string
+	description?: string
+	category?: string // uppercase, e.g. 'MATHEMATICS'
+	level?: string // uppercase, e.g. 'BACHELOR'
+	tags?: string[]
+	packages?: {
+		id?: string
+		name: string
+		price: number // in kopecks
+		deliveryDays: number
+		revisions?: number
+		description?: string
+		features?: string[]
+	}[]
+}
+
+export async function updateService(
+	id: string,
+	payload: UpdateServicePayload,
+): Promise<Service> {
+	const { data } = await apiClient.patch<BackendService>(
+		`/v1/services/${id}`,
+		payload,
+	)
 	return mapService(data)
 }
 

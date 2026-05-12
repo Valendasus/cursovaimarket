@@ -125,7 +125,7 @@ export default function Header() {
 					{/* Auth / User */}
 					<div className='hidden md:flex items-center gap-3'>
 						{isAuthenticated && user ? (
-							<DropdownMenu>
+							<DropdownMenu modal={false}>
 								<DropdownMenuTrigger asChild>
 									<button className='flex items-center gap-2 rounded-full pr-3 pl-1 py-1 hover:bg-accent transition-colors'>
 										<Avatar className='h-8 w-8'>

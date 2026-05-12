@@ -95,6 +95,48 @@ export class CreateServiceDto {
 	packages: CreatePackageDto[]
 }
 
+export class UpdatePackageDto {
+	@ApiPropertyOptional()
+	@IsOptional()
+	@IsString()
+	id?: string
+
+	@ApiProperty({ example: 'Базовый', maxLength: 100 })
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(100)
+	name: string
+
+	@ApiProperty({ example: 50000, description: 'Цена в копейках (минимум 1)' })
+	@IsInt()
+	@Min(1)
+	price: number
+
+	@ApiProperty({ example: 3, description: 'Срок выполнения в днях' })
+	@IsInt()
+	@Min(1)
+	deliveryDays: number
+
+	@ApiPropertyOptional({ example: 3, description: '-1 = без ограничений' })
+	@IsOptional()
+	@IsInt()
+	@Min(-1)
+	revisions?: number
+
+	@ApiPropertyOptional({ example: 'Что входит в пакет' })
+	@IsOptional()
+	@IsString()
+	@MaxLength(500)
+	description?: string
+
+	@ApiPropertyOptional({ type: [String] })
+	@IsOptional()
+	@IsArray()
+	@IsString({ each: true })
+	@MaxLength(200, { each: true })
+	features?: string[]
+}
+
 export class UpdateServiceDto {
 	@ApiPropertyOptional()
 	@IsOptional()
@@ -129,6 +171,13 @@ export class UpdateServiceDto {
 	@IsArray()
 	@IsUrl({}, { each: true, message: 'Каждый элемент images должен быть URL' })
 	images?: string[]
+
+	@ApiPropertyOptional({ type: [UpdatePackageDto] })
+	@IsOptional()
+	@IsArray()
+	@ValidateNested({ each: true })
+	@Type(() => UpdatePackageDto)
+	packages?: UpdatePackageDto[]
 }
 
 export class ServiceFiltersDto {
