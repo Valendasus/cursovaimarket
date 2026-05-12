@@ -174,3 +174,13 @@ export class ServiceFiltersDto {
 	@Max(100)
 	limit?: number = 12
 }
+
+export class PopularServicesDto {
+	@ApiPropertyOptional({ default: 3, maximum: 12 })
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	@Max(12)
+	limit?: number = 3
+}

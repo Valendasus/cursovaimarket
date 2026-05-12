@@ -93,7 +93,7 @@ export default function Footer() {
 						© {new Date().getFullYear()} КурсовойМаркет. Все права защищены.
 					</p>
 					<p className='text-xs text-muted-foreground'>
-						Сделано с ❤️ для студентов России
+						Сделано с ❤️ для студентов
 					</p>
 				</div>
 			</div>

@@ -11,9 +11,14 @@ import { Clock, RotateCcw, Star } from 'lucide-react'
 interface ServiceCardProps {
 	service: Service
 	index?: number
+	showTopBadge?: boolean
 }
 
-export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
+export default function ServiceCard({
+	service,
+	index = 0,
+	showTopBadge = false,
+}: ServiceCardProps) {
 	const basePackage = service.packages[0]
 	const theme = CATEGORY_THEME[service.category] ?? CATEGORY_THEME.other
 
@@ -28,14 +33,14 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
 				params={{ serviceId: service.id }}
 				className='block group'
 			>
-				<div className='rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300'>
+				<div className='rounded-2xl border border-border bg-card overflow-hidden transition-colors duration-300'>
 					{/* Thumbnail */}
 					<div className='relative h-44 overflow-hidden bg-muted'>
 						{service.thumbnail ? (
 							<img
 								src={service.thumbnail}
 								alt={service.title}
-								className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-500'
+								className='w-full h-full object-cover'
 							/>
 						) : (
 							<div
@@ -57,7 +62,7 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
 							</Badge>
 						</div>
 
-						{service.isFeatured && (
+						{(showTopBadge || service.isFeatured) && (
 							<div className='absolute top-3 right-3'>
 								<Badge className='bg-gold-500 text-white border-0 text-xs'>
 									⭐ Топ

@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
 import {
 	CreateServiceDto,
+	PopularServicesDto,
 	ServiceFiltersDto,
 	UpdateServiceDto,
 } from './dto/service.dto'
@@ -31,6 +32,12 @@ export class ServicesController {
 	@ApiOperation({ summary: 'Список услуг с фильтрами и пагинацией' })
 	findAll(@Query() filters: ServiceFiltersDto) {
 		return this.servicesService.findAll(filters)
+	}
+
+	@Get('popular')
+	@ApiOperation({ summary: 'Популярные услуги по категориям' })
+	findPopular(@Query() filters: PopularServicesDto) {
+		return this.servicesService.findPopularByCategory(filters.limit)
 	}
 
 	@Get(':id')

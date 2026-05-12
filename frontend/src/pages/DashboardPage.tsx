@@ -805,6 +805,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 				queryKey: ['freelancer-services', freelancerId],
 			})
 			queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+			queryClient.invalidateQueries({ queryKey: ['popular-services'] })
 			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
 		},
 		onError: (err: unknown) => {
@@ -821,6 +822,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 				queryKey: ['freelancer-services', freelancerId],
 			})
 			queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+			queryClient.invalidateQueries({ queryKey: ['popular-services'] })
 			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
 			setShowForm(false)
 			resetForm()
@@ -1614,6 +1616,7 @@ function SettingsTab() {
 						onChange={e => setName(e.target.value)}
 						className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 						placeholder='Ваш никнейм'
+						autoComplete='name'
 					/>
 				</div>
 

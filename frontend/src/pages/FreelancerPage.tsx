@@ -2,7 +2,7 @@ import { getFreelancerById, getServices } from '@/api/services'
 import ServiceCard from '@/features/services/ServiceCard'
 import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
-import { SERVICE_CATEGORIES } from '@/types'
+import { SERVICE_CATEGORIES, type ServiceCategory } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
@@ -96,9 +96,6 @@ export default function FreelancerPage() {
 							<h1 className='text-xl font-bold text-foreground'>
 								{freelancer.name}
 							</h1>
-							<p className='text-sm text-muted-foreground mt-1'>
-								{freelancer.specializations.join(' · ')}
-							</p>
 
 							<div className='flex justify-center gap-4 mt-4 text-sm'>
 								<div className='flex flex-col items-center'>
@@ -220,9 +217,35 @@ export default function FreelancerPage() {
 							</p>
 						) : (
 							<div className='grid sm:grid-cols-2 gap-4'>
-								{freelancerServices.map((service, i) => (
-									<ServiceCard key={service.id} service={service} index={i} />
-								))}
+								{(() => {
+									const topByCategory = freelancerServices.reduce<
+										Partial<Record<ServiceCategory, string>>
+									>((acc, service) => {
+										const currentId = acc[service.category]
+										if (!currentId) {
+											acc[service.category] = service.id
+											return acc
+										}
+										const current = freelancerServices.find(
+											item => item.id === currentId,
+										)
+										if (!current || service.ordersCount > current.ordersCount) {
+											acc[service.category] = service.id
+										}
+										return acc
+									}, {})
+
+									return freelancerServices.map((service, i) => (
+										<ServiceCard
+											key={service.id}
+											service={service}
+											index={i}
+											showTopBadge={
+												topByCategory[service.category] === service.id
+											}
+										/>
+									))
+								})()}
 							</div>
 						)}
 					</motion.div>

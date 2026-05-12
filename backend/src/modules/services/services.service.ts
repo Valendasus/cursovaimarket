@@ -4,7 +4,7 @@ import {
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, ServiceCategory } from '@prisma/client'
 import {
 	CreateServiceDto,
 	ServiceFiltersDto,
@@ -59,6 +59,37 @@ export class ServicesService {
 		])
 
 		return { data, total, page, limit }
+	}
+
+	async findPopularByCategory(limit = 3) {
+		const categories = Object.values(ServiceCategory)
+		const groups = await Promise.all(
+			categories.map(async category => {
+				const services = await this.prisma.service.findMany({
+					where: { category, isActive: true },
+					include: {
+						freelancer: {
+							select: { id: true, name: true, avatar: true, profile: true },
+						},
+						packages: { orderBy: { price: 'asc' } },
+					},
+					orderBy: [
+						{ ordersCount: 'desc' },
+						{ rating: 'desc' },
+						{ createdAt: 'desc' },
+					],
+					take: limit,
+				})
+				if (services.length === 0) return null
+				return { category, services }
+			}),
+		)
+
+		const data = groups.filter(
+			(group): group is NonNullable<typeof group> => group !== null,
+		)
+
+		return { data }
 	}
 
 	async findOne(id: string) {

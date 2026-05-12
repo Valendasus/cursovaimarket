@@ -1,10 +1,11 @@
-import { getFeaturedServices, getFreelancers } from '@/api/services'
+import { getPopularServicesByCategory } from '@/api/services'
 import FreelancerCard from '@/features/freelancers/FreelancerCard'
 import ServiceCard from '@/features/services/ServiceCard'
+import { CATEGORY_THEME } from '@/lib/categoryTheme'
 import { SERVICE_CATEGORIES } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
 import {
 	ArrowRight,
 	Award,
@@ -191,18 +192,25 @@ export default function HomePage() {
 	const heroY = useTransform(scrollYProgress, [0, 1], [0, 60])
 	const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0])
 
-	const { data } = useQuery({
-		queryKey: ['featured-services'],
-		queryFn: getFeaturedServices,
+	const { data: popularGroups } = useQuery({
+		queryKey: ['popular-services', 3],
+		queryFn: () => getPopularServicesByCategory(3),
 	})
 
-	const { data: freelancersData } = useQuery({
-		queryKey: ['top-freelancers'],
-		queryFn: () => getFreelancers(1, 4),
+	const popularByCategory = popularGroups ?? []
+	const topFreelancers = popularByCategory.flatMap(group => {
+		const unique = new Map<
+			string,
+			(typeof group.services)[number]['freelancer']
+		>()
+		group.services.forEach(service => {
+			if (!service.freelancer) return
+			if (!unique.has(service.freelancer.id)) {
+				unique.set(service.freelancer.id, service.freelancer)
+			}
+		})
+		return Array.from(unique.values()).slice(0, 3)
 	})
-
-	const featured = data ?? []
-	const topFreelancers = freelancersData?.data ?? []
 
 	return (
 		<div className='overflow-x-hidden'>
@@ -351,11 +359,59 @@ export default function HomePage() {
 						</div>
 					</Section>
 
-					{featured.length > 0 ? (
-						<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
-							{featured.map((service, i) => (
-								<ServiceCard key={service.id} service={service} index={i} />
-							))}
+					{popularByCategory.length > 0 ? (
+						<div className='space-y-8'>
+							{popularByCategory.map(group => {
+								const theme =
+									CATEGORY_THEME[group.category] ?? CATEGORY_THEME.other
+								return (
+									<div
+										key={group.category}
+										className='relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 p-6 md:p-7'
+									>
+										<div
+											className={`absolute -top-24 -right-20 h-56 w-56 rounded-full bg-gradient-to-br ${theme.gradient} opacity-60 blur-3xl`}
+										/>
+
+										<div className='relative flex flex-col gap-6 lg:flex-row lg:items-start'>
+											<div className='lg:w-60 shrink-0'>
+												<span
+													className={`inline-flex items-center gap-2 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-semibold ${theme.accent}`}
+												>
+													<span className='text-base'>{theme.emoji}</span>
+													Популярные в разделе
+												</span>
+												<h3 className='mt-3 text-xl md:text-2xl font-bold text-foreground'>
+													{SERVICE_CATEGORIES[group.category]}
+												</h3>
+												<p className='mt-2 text-sm text-muted-foreground'>
+													Топовые предложения по количеству заказов
+												</p>
+											</div>
+
+											<div className='grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1.15fr_1fr_1fr]'>
+												{group.services.map((service, i) => (
+													<motion.div
+														key={service.id}
+														initial={{ opacity: 0, y: 18 }}
+														whileInView={{ opacity: 1, y: 0 }}
+														viewport={{ once: true, amount: 0.25 }}
+														whileHover={{ scale: 1.03 }}
+														transition={{ duration: 0.45, delay: i * 0.08 }}
+														className='transition-transform duration-300'
+													>
+														<ServiceCard
+															service={service}
+															index={i}
+															showTopBadge={i === 0}
+														/>
+													</motion.div>
+												))}
+											</div>
+										</div>
+									</div>
+								)
+							})}
 						</div>
 					) : (
 						<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
@@ -437,59 +493,54 @@ export default function HomePage() {
 					</div>
 
 					{/* Steps */}
-					<AnimatePresence mode='wait'>
-						<motion.div
-							key={howTab}
-							initial={{ opacity: 0, y: 16 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -12 }}
-							transition={{ duration: 0.3 }}
-							className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
-						>
-							{(howTab === 'student' ? studentSteps : freelancerSteps).map(
-								(step, i) => (
-									<motion.div
-										key={step.num}
-										initial={{ opacity: 0, y: 24 }}
-										whileInView={{ opacity: 1, y: 0 }}
-										viewport={{ once: true }}
-										transition={{ delay: i * 0.1 }}
-										className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg transition-all duration-300'
+
+					<motion.div
+						key={howTab}
+						className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
+					>
+						{(howTab === 'student' ? studentSteps : freelancerSteps).map(
+							(step, i) => (
+								<motion.div
+									key={step.num}
+									initial={{ opacity: 0, y: 24 }}
+									whileInView={{ opacity: 1, y: 0 }}
+									viewport={{ once: true }}
+									transition={{ delay: i * 1 }}
+									className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg transition-all duration-300'
+								>
+									{/* connector line */}
+									{i <
+										(howTab === 'student' ? studentSteps : freelancerSteps)
+											.length -
+											1 && (
+										<div className='hidden xl:block absolute top-10 -right-4 w-8 h-px bg-border z-10' />
+									)}
+
+									<div
+										className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br ${step.color} mb-4 group-hover:scale-110 transition-transform duration-300`}
 									>
-										{/* connector line */}
-										{i <
-											(howTab === 'student' ? studentSteps : freelancerSteps)
-												.length -
-												1 && (
-											<div className='hidden xl:block absolute top-10 -right-4 w-8 h-px bg-border z-10' />
-										)}
+										<step.icon className={`w-5 h-5 ${step.iconColor}`} />
+									</div>
 
-										<div
-											className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br ${step.color} mb-4 group-hover:scale-110 transition-transform duration-300`}
-										>
-											<step.icon className={`w-5 h-5 ${step.iconColor}`} />
-										</div>
+									<div className='flex items-center justify-between mb-2'>
+										<span className='text-xs font-bold text-muted-foreground tracking-widest'>
+											ШАГ {step.num}
+										</span>
+										<span className='text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium'>
+											{step.badge}
+										</span>
+									</div>
 
-										<div className='flex items-center justify-between mb-2'>
-											<span className='text-xs font-bold text-muted-foreground tracking-widest'>
-												ШАГ {step.num}
-											</span>
-											<span className='text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium'>
-												{step.badge}
-											</span>
-										</div>
-
-										<h3 className='font-semibold text-foreground mb-2 text-base'>
-											{step.title}
-										</h3>
-										<p className='text-sm text-muted-foreground leading-relaxed'>
-											{step.description}
-										</p>
-									</motion.div>
-								),
-							)}
-						</motion.div>
-					</AnimatePresence>
+									<h3 className='font-semibold text-foreground mb-2 text-base'>
+										{step.title}
+									</h3>
+									<p className='text-sm text-muted-foreground leading-relaxed'>
+										{step.description}
+									</p>
+								</motion.div>
+							),
+						)}
+					</motion.div>
 
 					{/* Platform features */}
 					<Section>

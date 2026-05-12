@@ -44,6 +44,21 @@ export default function ServicesPage() {
 			s.description.toLowerCase().includes(search.toLowerCase()),
 	)
 
+	const topByCategory = filtered.reduce<
+		Partial<Record<ServiceCategory, string>>
+	>((acc, service) => {
+		const currentId = acc[service.category]
+		if (!currentId) {
+			acc[service.category] = service.id
+			return acc
+		}
+		const current = filtered.find(item => item.id === currentId)
+		if (!current || service.ordersCount > current.ordersCount) {
+			acc[service.category] = service.id
+		}
+		return acc
+	}, {})
+
 	return (
 		<div className='min-h-screen bg-background'>
 			<div className='container-custom py-10'>
@@ -180,7 +195,14 @@ export default function ServicesPage() {
 						) : (
 							<div className='grid sm:grid-cols-2 xl:grid-cols-3 gap-4'>
 								{filtered.map((service, i) => (
-									<ServiceCard key={service.id} service={service} index={i} />
+									<ServiceCard
+										key={service.id}
+										service={service}
+										index={i}
+										showTopBadge={
+											topByCategory[service.category] === service.id
+										}
+									/>
 								))}
 							</div>
 						)}

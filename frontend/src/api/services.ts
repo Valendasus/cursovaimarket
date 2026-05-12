@@ -69,6 +69,11 @@ interface BackendService {
 	updatedAt?: string
 }
 
+interface PopularServicesGroup {
+	category: ServiceCategory
+	services: Service[]
+}
+
 function mapPackage(pkg: BackendPackage): ServicePackage {
 	return {
 		id: pkg.id,
@@ -162,6 +167,20 @@ export async function getFeaturedServices(): Promise<Service[]> {
 		params: { limit: 4, page: 1, isFeatured: true },
 	})
 	return (data.data ?? []).map(mapService)
+}
+
+export async function getPopularServicesByCategory(
+	limit = 3,
+): Promise<PopularServicesGroup[]> {
+	const { data } = await apiClient.get('/v1/services/popular', {
+		params: { limit },
+	})
+	return (data.data ?? []).map(
+		(group: { category: string; services: BackendService[] }) => ({
+			category: mapCategory(group.category),
+			services: (group.services ?? []).map(mapService),
+		}),
+	)
 }
 
 export async function getFreelancerById(
