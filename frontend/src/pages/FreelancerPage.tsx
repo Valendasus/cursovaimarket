@@ -117,7 +117,7 @@ export default function FreelancerPage() {
 								<Link
 									to='/dashboard'
 									search={{ tab: 'messages', partnerId: freelancer.id }}
-									className='w-full mt-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2'
+									className='w-full mt-5 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-secondary'
 								>
 									<MessageSquare className='w-4 h-4' />
 									Написать
