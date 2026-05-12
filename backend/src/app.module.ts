@@ -13,7 +13,7 @@ import { PrismaModule } from './prisma/prisma.module'
 @Module({
 	imports: [
 		// Config — загружает .env глобально
-		ConfigModule.forRoot({ isGlobal: true }),
+		ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
 
 		// Rate limiting — 100 req / 60s globally, overridden per-route
 		ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),

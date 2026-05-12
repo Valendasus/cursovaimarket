@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/authStore'
+import type { User } from '@/types'
 import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
@@ -66,7 +67,7 @@ apiClient.interceptors.response.use(
 				const newToken = data.accessToken
 				const { mapUser } = await import('./auth')
 				const user = mapUser(data.user as Parameters<typeof mapUser>[0])
-				useAuthStore.getState().setUser(user as any, newToken)
+				useAuthStore.getState().setUser(user as User, newToken)
 
 				processQueue(newToken)
 				originalRequest.headers.Authorization = `Bearer ${newToken}`
@@ -86,7 +87,10 @@ apiClient.interceptors.response.use(
 
 export default apiClient
 
-export function extractApiError(err: unknown, fallback = 'Произошла ошибка'): string {
+export function extractApiError(
+	err: unknown,
+	fallback = 'Произошла ошибка',
+): string {
 	const raw = (err as { response?: { data?: { message?: unknown } } })?.response
 		?.data?.message
 	if (typeof raw === 'string') return raw

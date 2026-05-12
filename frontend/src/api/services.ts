@@ -92,7 +92,7 @@ function mapFreelancer(u: BackendUser): FreelancerProfile {
 		rating: p.rating ?? 0,
 		reviewsCount: p.reviewsCount ?? 0,
 		completedOrders: p.completedOrders ?? 0,
-		specializations: p.specializations ?? [],
+		specializations: (p.specializations ?? []).map(s => s.toLowerCase()),
 		isVerified: p.isVerified ?? false,
 		responseTime: p.responseTime ?? '~24 часа',
 		location: p.location,

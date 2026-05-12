@@ -45,7 +45,9 @@ export function mapUser(u: BackendUser): User | FreelancerProfile {
 			rating: u.profile.rating ?? 0,
 			reviewsCount: u.profile.reviewsCount ?? 0,
 			completedOrders: u.profile.completedOrders ?? 0,
-			specializations: u.profile.specializations ?? [],
+			specializations: (u.profile.specializations ?? []).map(s =>
+				s.toLowerCase(),
+			),
 			isVerified: u.profile.isVerified ?? false,
 			responseTime: u.profile.responseTime ?? '~24 часа',
 			location: u.profile.location,
@@ -97,12 +99,27 @@ export async function updateMeApi(data: { name?: string; avatar?: string }) {
 	return mapUser(res)
 }
 
+export async function uploadAvatarApi(file: File) {
+	const formData = new FormData()
+	formData.append('file', file)
+	const { data } = await apiClient.post<BackendUser>(
+		'/v1/users/me/avatar',
+		formData,
+		{ headers: { 'Content-Type': 'multipart/form-data' } },
+	)
+	return mapUser(data)
+}
+
 export async function updateProfileApi(data: {
 	bio?: string
 	telegram?: string
 	specializations?: string[]
 }) {
-	await apiClient.patch('/v1/users/me/profile', data)
+	const payload = {
+		...data,
+		specializations: data.specializations?.map(s => s.toUpperCase()),
+	}
+	await apiClient.patch('/v1/users/me/profile', payload)
 }
 
 export async function getMeApi() {

@@ -1,4 +1,9 @@
-import { switchRoleApi, updateMeApi, updateProfileApi } from '@/api/auth'
+import {
+	switchRoleApi,
+	updateMeApi,
+	updateProfileApi,
+	uploadAvatarApi,
+} from '@/api/auth'
 import {
 	findOrCreateConversation,
 	getConversations,
@@ -12,7 +17,12 @@ import type { CreateServicePayload } from '@/api/services'
 import { createService, deleteService, getMyServices } from '@/api/services'
 import { useChatSocket } from '@/hooks/useChatSocket'
 import { useAuthStore } from '@/store/authStore'
-import type { Service, ServiceCategory, ServiceLevel } from '@/types'
+import type {
+	FreelancerProfile,
+	Service,
+	ServiceCategory,
+	ServiceLevel,
+} from '@/types'
 import { SERVICE_CATEGORIES, SERVICE_LEVELS } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
@@ -55,6 +65,15 @@ const tabs: {
 	{ id: 'messages', label: 'Сообщения', icon: MessageSquare },
 	{ id: 'reviews', label: 'Отзывы', icon: Star },
 	{ id: 'settings', label: 'Настройки', icon: Settings },
+]
+
+const DEFAULT_AVATARS = [
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=sergey',
 ]
 
 const STATUS_LABEL: Record<string, string> = {
@@ -1331,12 +1350,31 @@ function ReviewsTab({ role }: { role: string }) {
 
 function SettingsTab() {
 	const { user, updateUser } = useAuthStore()
+	const normalizeSpecializations = (values?: string[]): ServiceCategory[] =>
+		(values ?? [])
+			.map(value => value.toLowerCase())
+			.filter((value): value is ServiceCategory =>
+				Object.prototype.hasOwnProperty.call(SERVICE_CATEGORIES, value),
+			)
+	const allowedAvatarTypes = ['image/jpeg', 'image/png', 'image/webp']
 	const [name, setName] = useState(user?.name ?? '')
 	const [bio, setBio] = useState(user?.bio ?? '')
 	const [telegram, setTelegram] = useState(user?.telegram ?? '')
+	const [avatar, setAvatar] = useState(user?.avatar ?? '')
+	const [avatarFile, setAvatarFile] = useState<File | null>(null)
+	const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+	const [avatarError, setAvatarError] = useState('')
+	const [specializations, setSpecializations] = useState<ServiceCategory[]>(
+		user?.role === 'freelancer'
+			? normalizeSpecializations(
+					(user as FreelancerProfile).specializations ?? [],
+				)
+			: [],
+	)
 	const [saving, setSaving] = useState(false)
 	const [saved, setSaved] = useState(false)
 	const [error, setError] = useState('')
+	const fileInputRef = useRef<HTMLInputElement | null>(null)
 
 	// Role switching state
 	const [roleSwitching, setRoleSwitching] = useState(false)
@@ -1346,6 +1384,46 @@ function SettingsTab() {
 	const isFreelancer = user?.role === 'freelancer'
 	const targetRole = isFreelancer ? 'STUDENT' : 'FREELANCER'
 	const targetRoleLabel = isFreelancer ? 'Заказчик' : 'Исполнитель'
+	const displayAvatar = avatarPreview ?? avatar
+
+	useEffect(() => {
+		setName(user?.name ?? '')
+		setBio(user?.bio ?? '')
+		setTelegram(user?.telegram ?? '')
+		setAvatar(user?.avatar ?? '')
+		setAvatarFile(null)
+		setSpecializations(
+			user?.role === 'freelancer'
+				? normalizeSpecializations(
+						(user as FreelancerProfile).specializations ?? [],
+					)
+				: [],
+		)
+	}, [user])
+
+	useEffect(() => {
+		if (!avatarFile) {
+			setAvatarPreview(null)
+			return
+		}
+		const url = URL.createObjectURL(avatarFile)
+		setAvatarPreview(url)
+		return () => URL.revokeObjectURL(url)
+	}, [avatarFile])
+
+	const handleAvatarFile = (file: File | null) => {
+		if (!file) return
+		if (!allowedAvatarTypes.includes(file.type)) {
+			setAvatarError('Только JPG, PNG или WebP')
+			return
+		}
+		if (file.size > 2 * 1024 * 1024) {
+			setAvatarError('Максимальный размер — 2MB')
+			return
+		}
+		setAvatarError('')
+		setAvatarFile(file)
+	}
 
 	const handleSwitchRole = async () => {
 		setRoleSwitching(true)
@@ -1375,18 +1453,40 @@ function SettingsTab() {
 		setError('')
 		setSaving(true)
 		try {
-			await updateMeApi({ name: name.trim() })
+			let avatarUrl = avatar.trim()
+			let uploadedAvatar: string | undefined
+			if (avatarFile) {
+				const uploaded = await uploadAvatarApi(avatarFile)
+				uploadedAvatar = uploaded.avatar
+				avatarUrl = uploadedAvatar ?? avatarUrl
+			}
+			if (avatarUrl && avatarUrl.startsWith('/')) {
+				avatarUrl = `${window.location.origin}${avatarUrl}`
+			}
+			await updateMeApi(
+				avatarFile
+					? { name: name.trim() }
+					: { name: name.trim(), avatar: avatarUrl || undefined },
+			)
 			if (isFreelancer) {
 				await updateProfileApi({
 					bio: bio.trim() || undefined,
 					telegram: telegram.trim() || undefined,
+					specializations,
 				})
+			}
+			if (uploadedAvatar) {
+				setAvatar(uploadedAvatar)
+				setAvatarFile(null)
+				setAvatarPreview(null)
 			}
 			updateUser({
 				name: name.trim(),
+				avatar: avatarUrl || undefined,
 				...(isFreelancer && {
 					bio: bio.trim() || undefined,
 					telegram: telegram.trim() || undefined,
+					specializations,
 				}),
 			})
 			setSaved(true)
@@ -1402,6 +1502,85 @@ function SettingsTab() {
 		<div className='glass-card rounded-2xl p-6'>
 			<h2 className='font-semibold text-foreground mb-6'>Настройки профиля</h2>
 			<form onSubmit={handleSave} className='space-y-4 max-w-md'>
+				<div>
+					<p className='block text-sm font-medium text-foreground mb-2'>
+						Аватар
+					</p>
+					<div className='flex items-center gap-4'>
+						<div className='w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden text-lg font-semibold text-muted-foreground'>
+							{displayAvatar ? (
+								<img
+									src={displayAvatar}
+									alt={name || 'Аватар'}
+									className='w-full h-full object-cover'
+								/>
+							) : (
+								(name || '?').charAt(0).toUpperCase()
+							)}
+						</div>
+						<div className='flex flex-wrap gap-2'>
+							<button
+								type='button'
+								onClick={() => fileInputRef.current?.click()}
+								className='px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted transition-colors'
+							>
+								Выбрать файл
+							</button>
+							<button
+								type='button'
+								onClick={() => {
+									setAvatar('')
+									setAvatarFile(null)
+									setAvatarPreview(null)
+									setAvatarError('')
+								}}
+								className='px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors'
+							>
+								Сбросить
+							</button>
+						</div>
+					</div>
+					<input
+						ref={fileInputRef}
+						type='file'
+						accept='image/jpeg,image/png,image/webp'
+						className='hidden'
+						onChange={e => {
+							handleAvatarFile(e.target.files?.[0] ?? null)
+							e.target.value = ''
+						}}
+					/>
+					<p className='text-xs text-muted-foreground mt-2'>
+						JPG, PNG или WebP, до 2MB
+					</p>
+					{avatarError && (
+						<p className='text-xs text-destructive mt-1'>{avatarError}</p>
+					)}
+				</div>
+
+				<div>
+					<p className='block text-sm font-medium text-foreground mb-2'>
+						Выбрать из коллекции
+					</p>
+					<div className='grid grid-cols-3 gap-2'>
+						{DEFAULT_AVATARS.map(src => (
+							<button
+								key={src}
+								type='button'
+								onClick={() => {
+									setAvatar(src)
+									setAvatarFile(null)
+									setAvatarPreview(null)
+									setAvatarError('')
+								}}
+								className='w-12 h-12 rounded-full overflow-hidden border border-border hover:border-primary/60 transition-colors'
+								aria-label='Выбрать аватар'
+							>
+								<img src={src} alt='' className='w-full h-full' />
+							</button>
+						))}
+					</div>
+				</div>
 				<div>
 					<label
 						htmlFor='settings-name'
@@ -1460,6 +1639,38 @@ function SettingsTab() {
 								className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 								placeholder='@username'
 							/>
+						</div>
+
+						<div>
+							<p className='block text-sm font-medium text-foreground mb-2'>
+								Специализации
+							</p>
+							<div className='grid sm:grid-cols-2 gap-2'>
+								{Object.entries(SERVICE_CATEGORIES).map(([value, label]) => {
+									const spec = value as ServiceCategory
+									const checked = specializations.includes(spec)
+									return (
+										<label
+											key={spec}
+											className='flex items-center gap-2 text-sm text-foreground'
+										>
+											<input
+												type='checkbox'
+												checked={checked}
+												onChange={() => {
+													setSpecializations(prev =>
+														checked
+															? prev.filter(item => item !== spec)
+															: [...prev, spec],
+													)
+												}}
+												className='h-4 w-4 rounded border-border text-primary focus:ring-primary'
+											/>
+											<span>{label}</span>
+										</label>
+									)
+								})}
+							</div>
 						</div>
 					</>
 				)}
