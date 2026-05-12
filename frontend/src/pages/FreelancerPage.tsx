@@ -126,7 +126,7 @@ export default function FreelancerPage() {
 									Написать
 								</Link>
 							)}
-							{freelancer.telegram && (
+							{user?.id !== freelancer.id && freelancer.telegram && (
 								<a
 									href={`https://t.me/${freelancer.telegram.replace(/^@/, '')}`}
 									target='_blank'

@@ -1,6 +1,7 @@
 import { extractApiError } from '@/api/client'
 import { getMyOrders } from '@/api/orders'
 import { createReview, getServiceReviews } from '@/api/reviews'
+import type { Service } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Star } from 'lucide-react'
 import { useState } from 'react'
@@ -78,6 +79,14 @@ export default function ReviewsSection({
 			queryClient.invalidateQueries({ queryKey: ['reviews', serviceId] })
 			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
 			queryClient.invalidateQueries({ queryKey: ['received-reviews'] })
+			queryClient.setQueryData<Service | null>(['service', serviceId], prev => {
+				if (!prev) return prev
+				const nextCount = (prev.reviewsCount ?? 0) + 1
+				const nextRating =
+					((prev.rating ?? 0) * (prev.reviewsCount ?? 0) + rating) / nextCount
+				return { ...prev, reviewsCount: nextCount, rating: nextRating }
+			})
+			queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
 		},
 		onError: (err: unknown) => {
 			setSubmitError(extractApiError(err, 'Ошибка при отправке отзыва'))

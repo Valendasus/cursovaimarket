@@ -23,14 +23,14 @@ import {
 import { useEffect, useRef, useState } from 'react'
 
 const navLinks = [
-	{ label: 'Услуги', href: '/services', isRoute: true },
-	{ label: 'Исполнители', href: '/freelancers', isRoute: true },
 	{
 		label: 'Как это работает',
 		href: '/#how-it-works',
 		isRoute: false,
 		anchor: 'how-it-works',
 	},
+	{ label: 'Услуги', href: '/services', isRoute: true },
+	{ label: 'Исполнители', href: '/freelancers', isRoute: true },
 ]
 
 export default function Header() {

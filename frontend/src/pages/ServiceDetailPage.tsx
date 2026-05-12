@@ -5,6 +5,7 @@ import ReviewsSection from '@/features/reviews/ReviewsSection'
 import { CATEGORY_THEME } from '@/lib/categoryTheme'
 import { formatPrice } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import type { Service } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -51,6 +52,10 @@ export default function ServiceDetailPage() {
 			setOrderSuccess(true)
 			setShowOrderForm(false)
 			void queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+			queryClient.setQueryData<Service | null>(['service', serviceId], prev =>
+				prev ? { ...prev, ordersCount: (prev.ordersCount ?? 0) + 1 } : prev,
+			)
+			void queryClient.invalidateQueries({ queryKey: ['service', serviceId] })
 		},
 	})
 
@@ -402,7 +407,7 @@ export default function ServiceDetailPage() {
 									Написать исполнителю
 								</Link>
 							)}
-							{service.freelancer?.telegram && (
+							{!isOwnService && service.freelancer?.telegram && (
 								<a
 									href={`https://t.me/${service.freelancer.telegram.replace(/^@/, '')}`}
 									target='_blank'

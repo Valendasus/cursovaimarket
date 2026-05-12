@@ -796,10 +796,17 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 
 	const { mutate: removeService } = useMutation({
 		mutationFn: deleteService,
-		onSuccess: () =>
+		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ['my-services', freelancerId],
-			}),
+			})
+			queryClient.invalidateQueries({ queryKey: ['services'] })
+			queryClient.invalidateQueries({
+				queryKey: ['freelancer-services', freelancerId],
+			})
+			queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
+		},
 		onError: (err: unknown) => {
 			setFormError(extractApiError(err, 'Не удалось удалить услугу'))
 		},
@@ -809,6 +816,12 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 		mutationFn: (payload: CreateServicePayload) => createService(payload),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['my-services', freelancerId] })
+			queryClient.invalidateQueries({ queryKey: ['services'] })
+			queryClient.invalidateQueries({
+				queryKey: ['freelancer-services', freelancerId],
+			})
+			queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+			queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
 			setShowForm(false)
 			resetForm()
 		},
@@ -1350,6 +1363,7 @@ function ReviewsTab({ role }: { role: string }) {
 
 function SettingsTab() {
 	const { user, updateUser } = useAuthStore()
+	const queryClient = useQueryClient()
 	const normalizeSpecializations = (values?: string[]): ServiceCategory[] =>
 		(values ?? [])
 			.map(value => value.toLowerCase())
@@ -1489,6 +1503,10 @@ function SettingsTab() {
 					specializations,
 				}),
 			})
+			if (user?.id) {
+				queryClient.invalidateQueries({ queryKey: ['freelancer', user.id] })
+			}
+			queryClient.invalidateQueries({ queryKey: ['freelancers'] })
 			setSaved(true)
 			setTimeout(() => setSaved(false), 3000)
 		} catch (err: unknown) {
