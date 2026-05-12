@@ -77,6 +77,17 @@ export class UsersService {
 		return profile
 	}
 
+	async updateAvatar(userId: string, avatar: string) {
+		const user = await this.prisma.user.update({
+			where: { id: userId },
+			data: { avatar },
+			include: { profile: true },
+		})
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { password, ...safe } = user
+		return safe
+	}
+
 	async switchRole(userId: string, dto: SwitchRoleDto) {
 		if (dto.role !== UserRole.STUDENT && dto.role !== UserRole.FREELANCER) {
 			throw new BadRequestException(

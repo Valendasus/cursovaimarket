@@ -25,7 +25,7 @@ export class UpdateUserDto {
 
 	@ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
 	@IsOptional()
-	@IsUrl()
+	@IsUrl({ require_tld: false })
 	avatar?: string
 }
 

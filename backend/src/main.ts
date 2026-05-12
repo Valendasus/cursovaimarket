@@ -1,26 +1,35 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
+import { NestExpressApplication } from '@nestjs/platform-express'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
+import { join } from 'path'
 import { AppModule } from './app.module'
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 
 async function bootstrap() {
-	const app = await NestFactory.create(AppModule)
+	const app = await NestFactory.create<NestExpressApplication>(AppModule)
 	const config = app.get(ConfigService)
 
 	// Graceful shutdown
 	app.enableShutdownHooks()
 
 	// Security
-	app.use(helmet())
+	app.use(
+		helmet({
+			crossOriginResourcePolicy: { policy: 'cross-origin' },
+		}),
+	)
 	app.use(cookieParser())
 
 	// Compression (gzip) — reduces response size
 	app.use(compression())
+
+	// Static uploads
+	app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' })
 
 	// Global prefix + versioning
 	app.setGlobalPrefix('api')

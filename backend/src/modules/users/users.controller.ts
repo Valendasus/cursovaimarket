@@ -2,6 +2,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import { Roles } from '@/common/decorators/roles.decorator'
 import { RolesGuard } from '@/common/guards/roles.guard'
 import {
+	BadRequestException,
 	Body,
 	Controller,
 	DefaultValuePipe,
@@ -9,18 +10,40 @@ import {
 	Param,
 	ParseIntPipe,
 	Patch,
+	Post,
 	Query,
+	Req,
+	UploadedFile,
 	UseGuards,
+	UseInterceptors,
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { FileInterceptor } from '@nestjs/platform-express'
+import {
+	ApiBearerAuth,
+	ApiBody,
+	ApiConsumes,
+	ApiOperation,
+	ApiTags,
+} from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
+import type { Request } from 'express'
+import { existsSync, mkdirSync } from 'fs'
+import { diskStorage } from 'multer'
+import { extname, join } from 'path'
 import {
 	SwitchRoleDto,
 	UpdateProfileDto,
 	UpdateUserDto,
 } from './dto/update-user.dto'
 import { UsersService } from './users.service'
+
+const AVATAR_UPLOAD_DIR = join(process.cwd(), 'uploads', 'avatars')
+if (!existsSync(AVATAR_UPLOAD_DIR)) {
+	mkdirSync(AVATAR_UPLOAD_DIR, { recursive: true })
+}
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 @ApiTags('Users')
 @Controller('users')
@@ -56,6 +79,66 @@ export class UsersController {
 	@ApiOperation({ summary: 'Обновить свои данные' })
 	updateMe(@CurrentUser('id') userId: string, @Body() dto: UpdateUserDto) {
 		return this.usersService.updateMe(userId, dto)
+	}
+
+	@Post('me/avatar')
+	@UseGuards(AuthGuard('jwt'))
+	@ApiBearerAuth()
+	@ApiConsumes('multipart/form-data')
+	@ApiBody({
+		schema: {
+			type: 'object',
+			properties: {
+				file: { type: 'string', format: 'binary' },
+			},
+		},
+	})
+	@UseInterceptors(
+		FileInterceptor('file', {
+			storage: diskStorage({
+				destination: AVATAR_UPLOAD_DIR,
+				filename: (
+					req: Request,
+					file: Express.Multer.File,
+					cb: (error: Error | null, filename: string) => void,
+				) => {
+					const ext = extname(file.originalname).toLowerCase()
+					const reqWithUser = req as Request & { user?: { id?: string } }
+					const userId = reqWithUser.user?.id ?? 'user'
+					cb(null, `${userId}-${Date.now()}${ext}`)
+				},
+			}),
+			fileFilter: (
+				req: Request,
+				file: Express.Multer.File,
+				cb: (error: Error | null, acceptFile: boolean) => void,
+			) => {
+				if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+					return cb(
+						new BadRequestException(
+							'Допустимы только JPG, PNG или WebP',
+						) as unknown as Error,
+						false,
+					)
+				}
+				return cb(null, true)
+			},
+			limits: { fileSize: 2 * 1024 * 1024 },
+		}),
+	)
+	@ApiOperation({ summary: 'Загрузить аватар' })
+	uploadAvatar(
+		@CurrentUser('id') userId: string,
+		@UploadedFile() file: Express.Multer.File,
+		@Req() req: Request,
+	) {
+		if (!file) {
+			throw new BadRequestException('Файл не загружен')
+		}
+		const host = req.get('host') ?? 'localhost:3000'
+		const baseUrl = `${req.protocol}://${host}`
+		const avatarUrl = `${baseUrl}/uploads/avatars/${file.filename}`
+		return this.usersService.updateAvatar(userId, avatarUrl)
 	}
 
 	@Patch('me/profile')

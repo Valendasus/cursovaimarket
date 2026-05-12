@@ -11,6 +11,15 @@ import * as bcrypt from 'bcrypt'
 import { randomUUID } from 'crypto'
 import { LoginDto, RegisterDto } from './dto/auth.dto'
 
+const DEFAULT_AVATARS = [
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
+	'https://api.dicebear.com/7.x/avataaars/svg?seed=sergey',
+]
+
 @Injectable()
 export class AuthService {
 	constructor(
@@ -39,6 +48,8 @@ export class AuthService {
 		}
 
 		const hashedPassword = await bcrypt.hash(dto.password, 10)
+		const avatar =
+			DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]
 
 		const user = await this.prisma.user.create({
 			data: {
@@ -46,6 +57,7 @@ export class AuthService {
 				email: dto.email,
 				password: hashedPassword,
 				role: dto.role,
+				avatar,
 				...(dto.role === UserRole.FREELANCER && {
 					profile: { create: {} },
 				}),
@@ -172,7 +184,10 @@ export class AuthService {
 			{ sub: userId, email, role, name, jti: randomUUID() },
 			{
 				secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-				expiresIn: this.config.get<string>('JWT_REFRESH_EXPIRES_IN', '30d') as any,
+				expiresIn: this.config.get<string>(
+					'JWT_REFRESH_EXPIRES_IN',
+					'30d',
+				) as any,
 			},
 		)
 	}
