@@ -1,3 +1,4 @@
+import { pickDefaultAvatar } from '@/common/avatars'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	ConflictException,
@@ -10,15 +11,6 @@ import { UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { randomUUID } from 'crypto'
 import { LoginDto, RegisterDto } from './dto/auth.dto'
-
-const DEFAULT_AVATARS = [
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=sergey',
-]
 
 @Injectable()
 export class AuthService {
@@ -48,8 +40,7 @@ export class AuthService {
 		}
 
 		const hashedPassword = await bcrypt.hash(dto.password, 10)
-		const avatar =
-			DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]
+		const avatar = pickDefaultAvatar()
 
 		const user = await this.prisma.user.create({
 			data: {
@@ -57,7 +48,7 @@ export class AuthService {
 				email: dto.email,
 				password: hashedPassword,
 				role: dto.role,
-				avatar,
+				...(avatar ? { avatar } : {}),
 				...(dto.role === UserRole.FREELANCER && {
 					profile: { create: {} },
 				}),

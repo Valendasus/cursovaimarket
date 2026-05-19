@@ -30,7 +30,7 @@ import type {
 } from '@/types'
 import { SERVICE_CATEGORIES, SERVICE_LEVELS } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import {
 	Briefcase,
@@ -73,14 +73,17 @@ const tabs: {
 	{ id: 'settings', label: 'Настройки', icon: Settings },
 ]
 
-const DEFAULT_AVATARS = [
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=olga',
-	'https://api.dicebear.com/7.x/avataaars/svg?seed=sergey',
-]
+const AVATAR_BASE_URL =
+	(import.meta.env.VITE_PUBLIC_URL as string | undefined) ?? ''
+const DEFAULT_AVATARS = (import.meta.env.VITE_DEFAULT_AVATARS ?? '')
+	.split(',')
+	.map(value => value.trim())
+	.filter(Boolean)
+	.map(src => {
+		if (!src.startsWith('/')) return src
+		const base = AVATAR_BASE_URL.replace(/\/$/, '')
+		return base ? `${base}${src}` : src
+	})
 
 const STATUS_LABEL: Record<string, string> = {
 	pending: 'Ожидает',
@@ -321,6 +324,7 @@ function OrderCard({
 				)}
 
 				{/* Chat link — opens Messages tab with this partner */}
+				{}
 				<Link
 					to='/dashboard'
 					search={{
@@ -569,18 +573,19 @@ function MessagesTab({
 	})
 
 	const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
-	const [initDone, setInitDone] = useState(false)
+	const lastPartnerIdRef = useRef<string | undefined>(undefined)
 
 	// When coming from "Написать" button — auto-find/create conversation
 	useEffect(() => {
-		if (!initialPartnerId || initDone) return
-		setInitDone(true)
+		if (!initialPartnerId || lastPartnerIdRef.current === initialPartnerId) {
+			return
+		}
+		lastPartnerIdRef.current = initialPartnerId
 		findOrCreateConversation(initialPartnerId).then(conv => {
 			setSelectedConvId(conv.id)
 			void queryClient.invalidateQueries({ queryKey: ['conversations'] })
 		})
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [initialPartnerId])
+	}, [initialPartnerId, queryClient])
 
 	const selectedConv = conversations.find(c => c.id === selectedConvId)
 
@@ -731,6 +736,8 @@ const LEVEL_OPTIONS: { value: ServiceLevel; label: string }[] = [
 	{ value: 'master', label: 'Магистратура' },
 ]
 
+const PACKAGE_LABELS = ['Базовый', 'Стандарт', 'Премиум'] as const
+
 function ServiceCard({
 	service,
 	onEdit,
@@ -804,7 +811,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 			name: 'Базовый',
 			price: '',
 			deliveryDays: '',
-			revisions: '1',
+			revisions: '-1',
 			description: '',
 		},
 	])
@@ -896,7 +903,7 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 				name: 'Базовый',
 				price: '',
 				deliveryDays: '',
-				revisions: '1',
+				revisions: '-1',
 				description: '',
 			},
 		])
@@ -933,7 +940,10 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 			name: pkg.name.trim() || 'Базовый',
 			price: Math.round(Number(pkg.price) * 100),
 			deliveryDays: Number(pkg.deliveryDays),
-			revisions: Number(pkg.revisions) || 1,
+			revisions:
+				pkg.revisions.trim() === '' || Number.isNaN(Number(pkg.revisions))
+					? 1
+					: Number(pkg.revisions),
 			description: pkg.description.trim() || undefined,
 		}))
 
@@ -991,7 +1001,10 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 						...prev,
 						{
 							id: undefined,
-							name: 'Стандарт',
+							name:
+								PACKAGE_LABELS.find(
+									label => !prev.some(pkg => pkg.name === label),
+								) ?? PACKAGE_LABELS[Math.min(prev.length, 2)],
 							price: '',
 							deliveryDays: '',
 							revisions: '1',
@@ -1215,14 +1228,17 @@ function ServicesTab({ freelancerId }: { freelancerId: string }) {
 											</label>
 											<input
 												type='number'
-												min='0'
+												min='-1'
 												value={pkg.revisions}
 												onChange={e =>
 													updatePackageField(idx, 'revisions', e.target.value)
 												}
-												placeholder='1'
+												placeholder='-1'
 												className='w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 											/>
+											<p className='text-[11px] text-muted-foreground mt-1'>
+												-1 = безлимит правок
+											</p>
 										</div>
 									</div>
 									<div>
@@ -1682,7 +1698,9 @@ function SettingsTab() {
 				avatarUrl = uploadedAvatar ?? avatarUrl
 			}
 			if (avatarUrl && avatarUrl.startsWith('/')) {
-				avatarUrl = `${window.location.origin}${avatarUrl}`
+				const baseUrl =
+					AVATAR_BASE_URL || window.location.origin.replace(/\/$/, '')
+				avatarUrl = `${baseUrl}${avatarUrl}`
 			}
 			await updateMeApi(
 				avatarFile
@@ -1725,183 +1743,203 @@ function SettingsTab() {
 
 	return (
 		<div className='glass-card rounded-2xl p-6'>
-			<h2 className='font-semibold text-foreground mb-6'>Настройки профиля</h2>
-			<form onSubmit={handleSave} className='space-y-4 max-w-md'>
+			<div className='flex items-center justify-between gap-3 mb-6'>
 				<div>
-					<p className='block text-sm font-medium text-foreground mb-2'>
-						Аватар
+					<h2 className='font-semibold text-foreground'>Настройки профиля</h2>
+					<p className='text-xs text-muted-foreground mt-1'>
+						Управляйте аватаром и персональными данными
 					</p>
-					<div className='flex items-center gap-4'>
-						<div className='w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden text-lg font-semibold text-muted-foreground'>
-							{displayAvatar ? (
-								<img
-									src={displayAvatar}
-									alt={name || 'Аватар'}
-									className='w-full h-full object-cover'
-								/>
-							) : (
-								(name || '?').charAt(0).toUpperCase()
+				</div>
+				<span className='text-[10px] uppercase tracking-[0.2em] text-muted-foreground'>
+					Profile
+				</span>
+			</div>
+			<form onSubmit={handleSave} className='space-y-5'>
+				<div className='rounded-3xl border border-border/60 bg-gradient-to-br from-white via-primary/5 to-primary/15 p-5 shadow-sm relative overflow-hidden'>
+					<div className='absolute -top-12 -right-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl' />
+					<div className='absolute -bottom-12 -left-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl' />
+					<div className='relative space-y-5'>
+						<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+							<p className='block text-sm font-medium text-foreground mb-3'>
+								Аватар
+							</p>
+							<div className='flex items-center gap-4'>
+								<div className='w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden text-lg font-semibold text-muted-foreground ring-2 ring-primary/10'>
+									{displayAvatar ? (
+										<img
+											src={displayAvatar}
+											alt={name || 'Аватар'}
+											className='w-full h-full object-cover'
+										/>
+									) : (
+										(name || '?').charAt(0).toUpperCase()
+									)}
+								</div>
+								<div className='flex flex-wrap gap-2'>
+									<button
+										type='button'
+										onClick={() => fileInputRef.current?.click()}
+										className='px-3 py-2 rounded-xl border border-border/60 text-sm hover:bg-muted transition-colors'
+									>
+										Выбрать файл
+									</button>
+									<button
+										type='button'
+										onClick={() => {
+											setAvatar('')
+											setAvatarFile(null)
+											setAvatarPreview(null)
+											setAvatarError('')
+										}}
+										className='px-3 py-2 rounded-xl border border-border/60 text-sm text-muted-foreground hover:bg-muted transition-colors'
+									>
+										Сбросить
+									</button>
+								</div>
+							</div>
+							<input
+								ref={fileInputRef}
+								type='file'
+								accept='image/jpeg,image/png,image/webp'
+								className='hidden'
+								onChange={e => {
+									handleAvatarFile(e.target.files?.[0] ?? null)
+									e.target.value = ''
+								}}
+							/>
+							<p className='text-xs text-muted-foreground mt-2'>
+								JPG, PNG или WebP, до 2MB
+							</p>
+							{avatarError && (
+								<p className='text-xs text-destructive mt-1'>{avatarError}</p>
 							)}
 						</div>
-						<div className='flex flex-wrap gap-2'>
-							<button
-								type='button'
-								onClick={() => fileInputRef.current?.click()}
-								className='px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted transition-colors'
-							>
-								Выбрать файл
-							</button>
-							<button
-								type='button'
-								onClick={() => {
-									setAvatar('')
-									setAvatarFile(null)
-									setAvatarPreview(null)
-									setAvatarError('')
-								}}
-								className='px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors'
-							>
-								Сбросить
-							</button>
-						</div>
-					</div>
-					<input
-						ref={fileInputRef}
-						type='file'
-						accept='image/jpeg,image/png,image/webp'
-						className='hidden'
-						onChange={e => {
-							handleAvatarFile(e.target.files?.[0] ?? null)
-							e.target.value = ''
-						}}
-					/>
-					<p className='text-xs text-muted-foreground mt-2'>
-						JPG, PNG или WebP, до 2MB
-					</p>
-					{avatarError && (
-						<p className='text-xs text-destructive mt-1'>{avatarError}</p>
-					)}
-				</div>
 
-				<div>
-					<p className='block text-sm font-medium text-foreground mb-2'>
-						Выбрать из коллекции
-					</p>
-					<div className='grid grid-cols-3 gap-2'>
-						{DEFAULT_AVATARS.map(src => (
-							<button
-								key={src}
-								type='button'
-								onClick={() => {
-									setAvatar(src)
-									setAvatarFile(null)
-									setAvatarPreview(null)
-									setAvatarError('')
-								}}
-								className='w-12 h-12 rounded-full overflow-hidden border border-border hover:border-primary/60 transition-colors'
-								aria-label='Выбрать аватар'
-							>
-								<img src={src} alt='' className='w-full h-full' />
-							</button>
-						))}
-					</div>
-				</div>
-				<div>
-					<label
-						htmlFor='settings-name'
-						className='block text-sm font-medium text-foreground mb-1.5'
-					>
-						Никнейм
-					</label>
-					<input
-						id='settings-name'
-						name='name'
-						type='text'
-						value={name}
-						onChange={e => setName(e.target.value)}
-						className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-						placeholder='Ваш никнейм'
-						autoComplete='name'
-					/>
-				</div>
-
-				{isFreelancer && (
-					<>
-						<div>
+						{DEFAULT_AVATARS.length > 0 && (
+							<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+								<p className='block text-sm font-medium text-foreground mb-2'>
+									Выбрать из коллекции
+								</p>
+								<div className='grid grid-cols-3 gap-2'>
+									{DEFAULT_AVATARS.map(src => (
+										<button
+											key={src}
+											type='button'
+											onClick={() => {
+												setAvatar(src)
+												setAvatarFile(null)
+												setAvatarPreview(null)
+												setAvatarError('')
+											}}
+											className='w-12 h-12 rounded-full overflow-hidden border border-border hover:border-primary/60 transition-colors'
+											aria-label='Выбрать аватар'
+										>
+											<img src={src} alt='' className='w-full h-full' />
+										</button>
+									))}
+								</div>
+							</div>
+						)}
+						<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
 							<label
-								htmlFor='settings-bio'
+								htmlFor='settings-name'
 								className='block text-sm font-medium text-foreground mb-1.5'
 							>
-								О себе
-							</label>
-							<textarea
-								id='settings-bio'
-								name='bio'
-								value={bio}
-								onChange={e => setBio(e.target.value)}
-								rows={3}
-								maxLength={500}
-								className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition resize-none'
-								placeholder='Расскажите о своём опыте...'
-							/>
-							<p className='text-xs text-muted-foreground mt-1 text-right'>
-								{bio.length}/500
-							</p>
-						</div>
-
-						<div>
-							<label
-								htmlFor='settings-telegram'
-								className='block text-sm font-medium text-foreground mb-1.5'
-							>
-								Telegram
+								Никнейм
 							</label>
 							<input
-								id='settings-telegram'
-								name='telegram'
+								id='settings-name'
+								name='name'
 								type='text'
-								value={telegram}
-								onChange={e => setTelegram(e.target.value)}
-								className='w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
-								placeholder='@username'
+								value={name}
+								onChange={e => setName(e.target.value)}
+								className='w-full px-3 py-2.5 rounded-xl border border-border/60 bg-background/70 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition'
+								placeholder='Ваш никнейм'
+								autoComplete='name'
 							/>
 						</div>
 
-						<div>
-							<p className='block text-sm font-medium text-foreground mb-2'>
-								Специализации
-							</p>
-							<div className='grid sm:grid-cols-2 gap-2'>
-								{Object.entries(SERVICE_CATEGORIES).map(([value, label]) => {
-									const spec = value as ServiceCategory
-									const checked = specializations.includes(spec)
-									return (
-										<label
-											key={spec}
-											className='flex items-center gap-2 text-sm text-foreground'
-										>
-											<input
-												type='checkbox'
-												checked={checked}
-												onChange={() => {
-													setSpecializations(prev =>
-														checked
-															? prev.filter(item => item !== spec)
-															: [...prev, spec],
-													)
-												}}
-												className='h-4 w-4 rounded border-border text-primary focus:ring-primary'
-											/>
-											<span>{label}</span>
-										</label>
-									)
-								})}
-							</div>
-						</div>
-					</>
-				)}
+						{isFreelancer && (
+							<>
+								<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+									<label
+										htmlFor='settings-bio'
+										className='block text-sm font-medium text-foreground mb-1.5'
+									>
+										О себе
+									</label>
+									<textarea
+										id='settings-bio'
+										name='bio'
+										value={bio}
+										onChange={e => setBio(e.target.value)}
+										rows={3}
+										maxLength={500}
+										className='w-full px-3 py-2.5 rounded-xl border border-border/60 bg-background/70 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition resize-none'
+										placeholder='Расскажите о своём опыте...'
+									/>
+									<p className='text-xs text-muted-foreground mt-1 text-right'>
+										{bio.length}/500
+									</p>
+								</div>
 
-				{error && <p className='text-xs text-destructive'>{error}</p>}
+								<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+									<label
+										htmlFor='settings-telegram'
+										className='block text-sm font-medium text-foreground mb-1.5'
+									>
+										Telegram
+									</label>
+									<input
+										id='settings-telegram'
+										name='telegram'
+										type='text'
+										value={telegram}
+										onChange={e => setTelegram(e.target.value)}
+										className='w-full px-3 py-2.5 rounded-xl border border-border/60 bg-background/70 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition'
+										placeholder='@username'
+									/>
+								</div>
+
+								<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+									<p className='block text-sm font-medium text-foreground mb-2'>
+										Специализации
+									</p>
+									<div className='grid sm:grid-cols-2 gap-2'>
+										{Object.entries(SERVICE_CATEGORIES).map(
+											([value, label]) => {
+												const spec = value as ServiceCategory
+												const checked = specializations.includes(spec)
+												return (
+													<label
+														key={spec}
+														className='flex items-center gap-2 text-sm text-foreground'
+													>
+														<input
+															type='checkbox'
+															checked={checked}
+															onChange={() => {
+																setSpecializations(prev =>
+																	checked
+																		? prev.filter(item => item !== spec)
+																		: [...prev, spec],
+																)
+															}}
+															className='h-4 w-4 rounded border-border/70 text-primary focus:ring-primary/60'
+														/>
+														<span>{label}</span>
+													</label>
+												)
+											},
+										)}
+									</div>
+								</div>
+							</>
+						)}
+
+						{error && <p className='text-xs text-destructive'>{error}</p>}
+					</div>
+				</div>
 
 				<motion.button
 					type='submit'
@@ -1924,61 +1962,102 @@ function SettingsTab() {
 
 			{/* Role switch section */}
 			<div className='mt-8 pt-6 border-t border-border'>
-				<h3 className='font-semibold text-foreground mb-1'>Роль аккаунта</h3>
-				<p className='text-sm text-muted-foreground mb-4'>
-					Сейчас вы{' '}
-					<span className='font-medium text-foreground'>
-						{isFreelancer ? 'Исполнитель' : 'Заказчик'}
-					</span>
-					. Вы можете переключиться на роль{' '}
-					<span className='font-medium text-foreground'>{targetRoleLabel}</span>
-					.
-				</p>
-
-				{!roleConfirm ? (
-					<button
-						type='button'
-						onClick={() => setRoleConfirm(true)}
-						className='px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors'
-					>
-						Сменить роль на «{targetRoleLabel}»
-					</button>
-				) : (
-					<div className='p-4 rounded-xl border border-amber-500/40 bg-amber-500/5 space-y-3'>
-						<p className='text-sm text-foreground'>
-							⚠️{' '}
-							{isFreelancer
-								? 'После смены роли ваши услуги будут недоступны для новых заказов. Профиль исполнителя сохранится — вы сможете вернуться обратно.'
-								: 'После смены роли вы сможете создавать услуги и принимать заказы как исполнитель.'}
+				<div className='flex items-center justify-between gap-4 mb-3'>
+					<div>
+						<h3 className='font-semibold text-foreground'>Роль аккаунта</h3>
+						<p className='text-xs text-muted-foreground mt-1'>
+							Выберите режим работы профиля
 						</p>
-						{roleError && (
-							<p className='text-xs text-destructive'>{roleError}</p>
-						)}
-						<div className='flex gap-2'>
-							<button
-								type='button'
-								onClick={handleSwitchRole}
-								disabled={roleSwitching}
-								className='px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
-							>
-								{roleSwitching
-									? 'Переключаем...'
-									: `Да, стать ${targetRoleLabel}`}
-							</button>
-							<button
-								type='button'
-								onClick={() => {
+					</div>
+					<span className='text-[10px] uppercase tracking-[0.2em] text-muted-foreground'>
+						Role
+					</span>
+				</div>
+				<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+					<div className='relative grid grid-cols-2 gap-1 rounded-full border border-border/60 bg-muted/40 p-1 text-xs font-medium text-muted-foreground'>
+						<div
+							className={`absolute top-1 left-1 h-[calc(100%-0.5rem)] w-[calc(50%-0.25rem)] rounded-full bg-primary/20 transition-transform duration-200 ${
+								isFreelancer ? 'translate-x-full' : ''
+							}`}
+						/>
+						<button
+							type='button'
+							onClick={() => {
+								if (isFreelancer) {
+									setRoleConfirm(true)
+								} else {
 									setRoleConfirm(false)
 									setRoleError('')
-								}}
-								disabled={roleSwitching}
-								className='px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors'
-							>
-								Отмена
-							</button>
-						</div>
+								}
+							}}
+							className={`relative z-10 rounded-full py-2 transition-colors ${
+								!isFreelancer ? 'text-foreground' : 'text-muted-foreground'
+							}`}
+						>
+							Заказчик
+						</button>
+						<button
+							type='button'
+							onClick={() => {
+								if (!isFreelancer) {
+									setRoleConfirm(true)
+								} else {
+									setRoleConfirm(false)
+									setRoleError('')
+								}
+							}}
+							className={`relative z-10 rounded-full py-2 transition-colors ${
+								isFreelancer ? 'text-foreground' : 'text-muted-foreground'
+							}`}
+						>
+							Исполнитель
+						</button>
 					</div>
-				)}
+					<p className='text-xs text-muted-foreground mt-3'>
+						Сейчас активен режим{' '}
+						<span className='font-medium text-foreground'>
+							{isFreelancer ? 'Исполнитель' : 'Заказчик'}
+						</span>
+						. Переключение применится после подтверждения.
+					</p>
+
+					{roleConfirm && (
+						<div className='mt-4 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 space-y-3'>
+							<p className='text-sm text-foreground'>
+								⚠️{' '}
+								{isFreelancer
+									? 'После смены роли ваши услуги будут недоступны для новых заказов. Профиль исполнителя сохранится — вы сможете вернуться обратно.'
+									: 'После смены роли вы сможете создавать услуги и принимать заказы как исполнитель.'}
+							</p>
+							{roleError && (
+								<p className='text-xs text-destructive'>{roleError}</p>
+							)}
+							<div className='flex gap-2'>
+								<button
+									type='button'
+									onClick={handleSwitchRole}
+									disabled={roleSwitching}
+									className='px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors'
+								>
+									{roleSwitching
+										? 'Переключаем...'
+										: `Да, стать ${targetRoleLabel}`}
+								</button>
+								<button
+									type='button'
+									onClick={() => {
+										setRoleConfirm(false)
+										setRoleError('')
+									}}
+									disabled={roleSwitching}
+									className='px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors'
+								>
+									Отмена
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	)
@@ -1986,14 +2065,15 @@ function SettingsTab() {
 
 export default function DashboardPage() {
 	const { user, logout } = useAuthStore()
+	const navigate = useNavigate()
 	const search = useSearch({ from: '/dashboard' })
 	const initialPartnerId = search.partnerId
-	const initialTab: TabId = (
+	const tabFromSearch: TabId = (
 		['orders', 'services', 'messages', 'reviews', 'settings'] as TabId[]
 	).includes(search.tab as TabId)
 		? (search.tab as TabId)
 		: 'orders'
-	const [activeTab, setActiveTab] = useState<TabId>(initialTab)
+	const activeTab = tabFromSearch
 	const [ordersLimit, setOrdersLimit] = useState(10)
 
 	const { data: orders = [], isLoading: ordersLoading } = useQuery({
@@ -2065,7 +2145,12 @@ export default function DashboardPage() {
 									return (
 										<button
 											key={tab.id}
-											onClick={() => setActiveTab(tab.id)}
+											onClick={() => {
+												void navigate({
+													to: '/dashboard',
+													search: prev => ({ ...prev, tab: tab.id }),
+												})
+											}}
 											className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
 												isActive
 													? 'bg-primary/10 text-primary font-medium'

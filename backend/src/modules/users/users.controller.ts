@@ -2,6 +2,11 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import { Roles } from '@/common/decorators/roles.decorator'
 import { RolesGuard } from '@/common/guards/roles.guard'
 import {
+	buildAvatarPath,
+	buildPublicUrl,
+	resolveAvatarDir,
+} from '@/common/uploads'
+import {
 	BadRequestException,
 	Body,
 	Controller,
@@ -28,20 +33,14 @@ import {
 } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
 import type { Request } from 'express'
-import { existsSync, mkdirSync } from 'fs'
 import { diskStorage } from 'multer'
-import { extname, join } from 'path'
+import { extname } from 'path'
 import {
 	SwitchRoleDto,
 	UpdateProfileDto,
 	UpdateUserDto,
 } from './dto/update-user.dto'
 import { UsersService } from './users.service'
-
-const AVATAR_UPLOAD_DIR = join(process.cwd(), 'uploads', 'avatars')
-if (!existsSync(AVATAR_UPLOAD_DIR)) {
-	mkdirSync(AVATAR_UPLOAD_DIR, { recursive: true })
-}
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -96,7 +95,9 @@ export class UsersController {
 	@UseInterceptors(
 		FileInterceptor('file', {
 			storage: diskStorage({
-				destination: AVATAR_UPLOAD_DIR,
+				destination: (req, file, cb) => {
+					cb(null, resolveAvatarDir())
+				},
 				filename: (
 					req: Request,
 					file: Express.Multer.File,
@@ -135,9 +136,8 @@ export class UsersController {
 		if (!file) {
 			throw new BadRequestException('Файл не загружен')
 		}
-		const host = req.get('host') ?? 'localhost:3000'
-		const baseUrl = `${req.protocol}://${host}`
-		const avatarUrl = `${baseUrl}/uploads/avatars/${file.filename}`
+		const avatarPath = buildAvatarPath(file.filename)
+		const avatarUrl = buildPublicUrl(avatarPath, req)
 		return this.usersService.updateAvatar(userId, avatarUrl)
 	}
 

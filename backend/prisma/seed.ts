@@ -3,15 +3,40 @@ import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
 
+function parseAvatarList(raw?: string): string[] {
+	if (!raw) return []
+	return raw
+		.split(',')
+		.map(value => value.trim())
+		.filter(Boolean)
+}
+
+function normalizeAvatarUrl(src: string): string {
+	if (/^https?:\/\//i.test(src)) return src
+	const base = (process.env.PUBLIC_URL || '').replace(/\/$/, '')
+	const path = src.startsWith('/') ? src : `/${src}`
+	return base ? `${base}${path}` : path
+}
+
+function buildDefaultAvatars(): string[] {
+	return parseAvatarList(process.env.DEFAULT_AVATARS).map(normalizeAvatarUrl)
+}
+
 async function main() {
 	console.log('🌱 Seeding database...')
 
 	// ─── Freelancers ──────────────────────────────────────────────────────────
+	const defaultAvatars = buildDefaultAvatars()
+	const pickDefaultAvatar = (index: number) =>
+		defaultAvatars.length > 0
+			? defaultAvatars[index % defaultAvatars.length]
+			: undefined
+
 	const freelancersData = [
 		{
 			email: 'ivan@cursovai.ru',
 			name: 'Иван Петров',
-			avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ivan',
+			avatar: pickDefaultAvatar(0),
 			profile: {
 				bio: 'Кандидат экономических наук. 7 лет пишу курсовые по экономике и менеджменту. Гарантирую уникальность и антиплагиат от 85%. Всегда на связи, выполняю в срок.',
 				rating: 4.9,
@@ -26,7 +51,7 @@ async function main() {
 		{
 			email: 'maria@cursovai.ru',
 			name: 'Мария Котова',
-			avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maria',
+			avatar: pickDefaultAvatar(1),
 			profile: {
 				bio: 'Программист с опытом в академическом письме. Специализируюсь на информатике, алгоритмах и ИИ. Чистый код и понятные объяснения.',
 				rating: 4.8,
@@ -41,7 +66,7 @@ async function main() {
 		{
 			email: 'alex@cursovai.ru',
 			name: 'Александр Новиков',
-			avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
+			avatar: pickDefaultAvatar(2),
 			profile: {
 				bio: 'Юрист-практик. Пишу курсовые по всем отраслям права. Строгое соответствие актуальному законодательству.',
 				rating: 4.7,
@@ -56,7 +81,7 @@ async function main() {
 		{
 			email: 'elena@cursovai.ru',
 			name: 'Елена Смирнова',
-			avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
+			avatar: pickDefaultAvatar(3),
 			profile: {
 				bio: 'Математик, преподаватель вуза. Высшая математика, теория вероятностей, математическая статистика. Идеальное оформление по ГОСТ.',
 				rating: 5.0,
@@ -82,7 +107,7 @@ async function main() {
 				email: fd.email,
 				password: hashedPass,
 				name: fd.name,
-				avatar: fd.avatar,
+				...(fd.avatar ? { avatar: fd.avatar } : {}),
 				role: 'FREELANCER',
 				profile: { create: fd.profile },
 			},
