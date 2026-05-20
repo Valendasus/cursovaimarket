@@ -20,7 +20,9 @@ import {
 	getMyServices,
 	updateService,
 } from '@/api/services'
+import { useChatNotifications } from '@/hooks/useChatNotifications'
 import { useChatSocket } from '@/hooks/useChatSocket'
+import { formatFileSize } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type {
 	FreelancerProfile,
@@ -41,6 +43,7 @@ import {
 	LogOut,
 	MessageCircle,
 	MessageSquare,
+	Paperclip,
 	Pencil,
 	Plus,
 	Send,
@@ -54,6 +57,8 @@ import {
 import { useEffect, useRef, useState } from 'react'
 
 type TabId = 'orders' | 'services' | 'messages' | 'reviews' | 'settings'
+
+const MAX_CHAT_FILE_SIZE = 20 * 1024 * 1024
 
 const tabs: {
 	id: TabId
@@ -401,6 +406,10 @@ function OrderCard({
 
 // ─── Messages Tab ─────────────────────────────────────────────────────────────
 
+function isImageAttachment(type?: string | null) {
+	return Boolean(type && type.startsWith('image/'))
+}
+
 /** Inner chat content used by MessagesTab (messages list + input) */
 function InlineChatContent({
 	conversationId,
@@ -414,9 +423,12 @@ function InlineChatContent({
 		enabled: true,
 	})
 	const [input, setInput] = useState('')
+	const [selectedFile, setSelectedFile] = useState<File | null>(null)
+	const [fileError, setFileError] = useState('')
 	const [sending, setSending] = useState(false)
 	const scrollRef = useRef<HTMLDivElement | null>(null)
 	const inputRef = useRef<HTMLTextAreaElement | null>(null)
+	const fileRef = useRef<HTMLInputElement | null>(null)
 
 	useEffect(() => {
 		markRead()
@@ -429,15 +441,30 @@ function InlineChatContent({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if (!trimmed || sending) return
+		if ((!trimmed && !selectedFile) || sending) return
 		setSending(true)
 		setInput('')
 		try {
-			await sendMessage(trimmed)
+			await sendMessage({
+				content: trimmed || undefined,
+				file: selectedFile ?? undefined,
+			})
+			setSelectedFile(null)
+			setFileError('')
 		} finally {
 			setSending(false)
 			inputRef.current?.focus()
 		}
+	}
+
+	const handleFilePick = (file: File | null) => {
+		if (!file) return
+		if (file.size > MAX_CHAT_FILE_SIZE) {
+			setFileError('Максимальный размер файла — 20MB')
+			return
+		}
+		setFileError('')
+		setSelectedFile(file)
 	}
 
 	return (
@@ -461,7 +488,10 @@ function InlineChatContent({
 			)}
 
 			{/* Messages */}
-			<div ref={scrollRef} className='flex-1 overflow-y-auto p-4 space-y-3'>
+			<div
+				ref={scrollRef}
+				className='flex-1 overflow-y-auto p-4 space-y-3 chat-wallpaper'
+			>
 				{messages.length === 0 ? (
 					<div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
 						<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
@@ -493,21 +523,56 @@ function InlineChatContent({
 									</div>
 								)}
 								<div
-									className={`max-w-[70%] flex flex-col gap-0.5 ${isMine ? 'items-end' : 'items-start'}`}
+									className={`max-w-[70%] flex flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}
 								>
-									<div
-										className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-											isMine
-												? 'bg-primary text-primary-foreground rounded-br-sm'
-												: 'bg-muted text-foreground rounded-bl-sm'
-										}`}
-									>
-										{msg.content}
-									</div>
-									<span className='text-[10px] text-muted-foreground px-1'>
+									{msg.attachmentUrl && (
+										<a
+											href={msg.attachmentUrl}
+											target='_blank'
+											rel='noreferrer'
+											className={`overflow-hidden rounded-2xl border border-white/10 ${
+												isImageAttachment(msg.attachmentType)
+													? 'bg-black/30'
+													: isMine
+														? 'bg-primary text-primary-foreground'
+														: 'bg-muted text-foreground'
+											}`}
+										>
+											{isImageAttachment(msg.attachmentType) ? (
+												<img
+													src={msg.attachmentUrl}
+													alt={msg.attachmentName ?? 'Изображение'}
+													className='max-h-64 w-full object-cover'
+												/>
+											) : (
+												<div className='px-3 py-2 text-sm'>
+													<p className='font-medium break-all'>
+														{msg.attachmentName ?? 'Файл'}
+													</p>
+													{typeof msg.attachmentSize === 'number' && (
+														<p className='text-[10px] opacity-80'>
+															{formatFileSize(msg.attachmentSize)}
+														</p>
+													)}
+												</div>
+											)}
+										</a>
+									)}
+									{msg.content && msg.content.trim() && (
+										<div
+											className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+												isMine
+													? 'bg-primary text-primary-foreground rounded-br-sm'
+													: 'bg-muted text-foreground rounded-bl-sm'
+											}`}
+										>
+											{msg.content}
+										</div>
+									)}
+									<span className='text-[10px] text-white px-1'>
 										{time}
 										{isMine && (
-											<span className='ml-1 opacity-60'>
+											<span className='ml-1 text-white'>
 												{msg.isRead ? '✓✓' : '✓'}
 											</span>
 										)}
@@ -521,6 +586,23 @@ function InlineChatContent({
 
 			{/* Input */}
 			<div className='shrink-0 border-t border-border p-3 flex items-end gap-2'>
+				<input
+					ref={fileRef}
+					type='file'
+					className='hidden'
+					onChange={e => {
+						handleFilePick(e.target.files?.[0] ?? null)
+						e.target.value = ''
+					}}
+				/>
+				<button
+					type='button'
+					onClick={() => fileRef.current?.click()}
+					className='shrink-0 w-9 h-9 rounded-xl border border-border bg-muted/30 text-muted-foreground flex items-center justify-center hover:bg-muted/60 hover:text-foreground transition'
+					title='Прикрепить файл'
+				>
+					<Paperclip className='w-4 h-4' />
+				</button>
 				<textarea
 					ref={inputRef}
 					value={input}
@@ -538,7 +620,7 @@ function InlineChatContent({
 				/>
 				<button
 					onClick={() => void handleSend()}
-					disabled={!input.trim() || sending}
+					disabled={(!input.trim() && !selectedFile) || sending}
 					className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-all active:scale-95'
 				>
 					{sending ? (
@@ -548,6 +630,29 @@ function InlineChatContent({
 					)}
 				</button>
 			</div>
+			{(selectedFile || fileError) && (
+				<div className='px-3 pb-3 flex items-center gap-2 text-xs text-muted-foreground'>
+					{selectedFile && (
+						<div className='flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1'>
+							<span className='max-w-[220px] truncate'>
+								{selectedFile.name}
+							</span>
+							<span className='opacity-70'>
+								{formatFileSize(selectedFile.size)}
+							</span>
+							<button
+								type='button'
+								onClick={() => setSelectedFile(null)}
+								className='text-muted-foreground hover:text-foreground'
+								title='Убрать файл'
+							>
+								<X className='w-3 h-3' />
+							</button>
+						</div>
+					)}
+					{fileError && <span className='text-destructive'>{fileError}</span>}
+				</div>
+			)}
 		</>
 	)
 }
@@ -559,12 +664,19 @@ function MessagesTab({
 	currentUserId: string
 	initialPartnerId?: string
 }) {
+	useChatNotifications(true)
 	const queryClient = useQueryClient()
 
 	const { data: conversations = [], isLoading } = useQuery({
 		queryKey: ['conversations'],
 		queryFn: getConversations,
+		refetchInterval: 15000,
 	})
+
+	useEffect(() => {
+		queryClient.invalidateQueries({ queryKey: ['conversations'] })
+		queryClient.invalidateQueries({ queryKey: ['unread-counts'] })
+	}, [queryClient])
 
 	const { data: unreadCounts = {} } = useQuery({
 		queryKey: ['unread-counts'],
@@ -651,7 +763,10 @@ function MessagesTab({
 														{conv.lastMessage.senderId === currentUserId
 															? 'Вы: '
 															: ''}
-														{conv.lastMessage.content}
+														{conv.lastMessage.content?.trim() ||
+															(conv.lastMessage.attachmentName
+																? `Файл: ${conv.lastMessage.attachmentName}`
+																: 'Файл')}
 													</p>
 												)}
 											</div>

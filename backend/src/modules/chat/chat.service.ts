@@ -47,7 +47,13 @@ export class ChatService {
 				messages: {
 					orderBy: { createdAt: 'desc' },
 					take: 1,
-					select: { content: true, createdAt: true, senderId: true },
+					select: {
+						content: true,
+						createdAt: true,
+						senderId: true,
+						attachmentName: true,
+						attachmentType: true,
+					},
 				},
 			},
 			orderBy: { updatedAt: 'desc' },
@@ -77,10 +83,28 @@ export class ChatService {
 	// ── Messages ──────────────────────────────────────────────────────────────
 
 	/** Save a direct message and return it with sender info */
-	async saveMessage(conversationId: string, senderId: string, content: string) {
+	async saveMessage(
+		conversationId: string,
+		senderId: string,
+		content?: string | null,
+		attachment?: {
+			url: string
+			name?: string | null
+			type?: string | null
+			size?: number | null
+		},
+	) {
 		const [msg] = await this.prisma.$transaction([
 			this.prisma.directMessage.create({
-				data: { conversationId, senderId, content },
+				data: {
+					conversationId,
+					senderId,
+					content: content?.trim() || null,
+					attachmentUrl: attachment?.url,
+					attachmentName: attachment?.name ?? null,
+					attachmentType: attachment?.type ?? null,
+					attachmentSize: attachment?.size ?? null,
+				},
 				include: { sender: { select: USER_SELECT } },
 			}),
 			this.prisma.conversation.update({

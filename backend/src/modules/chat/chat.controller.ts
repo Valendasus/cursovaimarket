@@ -1,5 +1,11 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import {
+	buildMessagePath,
+	buildPublicUrl,
+	resolveMessageDir,
+} from '@/common/uploads'
+import {
+	BadRequestException,
 	Body,
 	Controller,
 	DefaultValuePipe,
@@ -9,11 +15,18 @@ import {
 	Patch,
 	Post,
 	Query,
+	Req,
+	UploadedFile,
 	UseGuards,
+	UseInterceptors,
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
+import type { Request } from 'express'
+import { diskStorage } from 'multer'
+import { extname } from 'path'
 import { ChatService } from './chat.service'
 import { CreateConversationDto, SendMessageDto } from './dto/chat.dto'
 
@@ -75,11 +88,67 @@ export class ChatController {
 		@Body() body: SendMessageDto,
 	) {
 		await this.chatService.assertParticipant(conversationId, userId)
+		const hasText = Boolean(body.content?.trim())
+		const hasAttachment = Boolean(body.attachmentUrl)
+		if (!hasText && !hasAttachment) {
+			throw new BadRequestException('Сообщение не может быть пустым')
+		}
 		return this.chatService.saveMessage(
 			conversationId,
 			userId,
-			body.content.trim(),
+			body.content,
+			hasAttachment
+				? {
+						url: body.attachmentUrl ?? '',
+						name: body.attachmentName,
+						type: body.attachmentType,
+						size: body.attachmentSize,
+					}
+				: undefined,
 		)
+	}
+
+	/** POST /chat/conversations/:id/files — upload attachment */
+	@Post('conversations/:conversationId/files')
+	@Throttle({ default: { limit: 30, ttl: 60_000 } })
+	@ApiOperation({ summary: 'Загрузить файл для переписки' })
+	@UseInterceptors(
+		FileInterceptor('file', {
+			storage: diskStorage({
+				destination: (req, file, cb) => {
+					cb(null, resolveMessageDir())
+				},
+				filename: (
+					req: Request,
+					file: Express.Multer.File,
+					cb: (error: Error | null, filename: string) => void,
+				) => {
+					const ext = extname(file.originalname).toLowerCase()
+					const stamp = Date.now().toString(36)
+					const rand = Math.random().toString(36).slice(2, 8)
+					cb(null, `msg-${stamp}-${rand}${ext}`)
+				},
+			}),
+			limits: { fileSize: 20 * 1024 * 1024 },
+		}),
+	)
+	async uploadMessageFile(
+		@Param('conversationId') conversationId: string,
+		@CurrentUser('id') userId: string,
+		@UploadedFile() file: Express.Multer.File,
+		@Req() req: Request,
+	) {
+		await this.chatService.assertParticipant(conversationId, userId)
+		if (!file) {
+			throw new BadRequestException('Файл не загружен')
+		}
+		const path = buildMessagePath(file.filename)
+		return {
+			url: buildPublicUrl(path, req),
+			name: file.originalname,
+			type: file.mimetype,
+			size: file.size,
+		}
 	}
 
 	/** PATCH /chat/conversations/:id/read */

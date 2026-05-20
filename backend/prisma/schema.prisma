@@ -215,7 +215,11 @@ model DirectMessage {
   id             String       @id @default(cuid())
   conversationId String
   senderId       String
-  content        String
+  content        String?
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
   isRead         Boolean      @default(false)
   createdAt      DateTime     @default(now())
 

@@ -17,7 +17,7 @@ interface UseChatSocketOptions {
 interface UseChatSocketReturn {
 	messages: DirectMessage[]
 	status: ChatStatus
-	sendMessage: (content: string) => Promise<void>
+	sendMessage: (payload: { content?: string; file?: File }) => Promise<void>
 	markRead: () => void
 }
 
@@ -30,19 +30,49 @@ export function useChatSocket({
 	const [messages, setMessages] = useState<DirectMessage[]>([])
 	const [status, setStatus] = useState<ChatStatus>('idle')
 	const socketRef = useRef<Socket | null>(null)
+	const historyFetchIdRef = useRef(0)
 
 	const sendMessage = useCallback(
-		async (content: string) => {
-			if (!conversationId || !content.trim()) return
+		async ({ content, file }: { content?: string; file?: File }) => {
+			if (!conversationId) return
+			const trimmed = content?.trim()
+			if (!trimmed && !file) return
+
+			let attachment:
+				| {
+						url: string
+						name?: string
+						type?: string
+						size?: number
+				  }
+				| undefined
+			if (file) {
+				const { uploadChatFile } = await import('@/api/chat')
+				const uploaded = await uploadChatFile(conversationId, file)
+				attachment = {
+					url: uploaded.url,
+					name: uploaded.name,
+					type: uploaded.type,
+					size: uploaded.size,
+				}
+			}
+
+			const payload = {
+				content: trimmed,
+				attachmentUrl: attachment?.url,
+				attachmentName: attachment?.name,
+				attachmentType: attachment?.type,
+				attachmentSize: attachment?.size,
+			}
 
 			if (socketRef.current?.connected) {
 				socketRef.current.emit('sendMessage', {
 					conversationId,
-					content: content.trim(),
+					...payload,
 				})
 			} else {
 				const { sendDirectMessageHttp } = await import('@/api/chat')
-				const msg = await sendDirectMessageHttp(conversationId, content.trim())
+				const msg = await sendDirectMessageHttp(conversationId, payload)
 				setMessages(prev => [...prev, msg])
 			}
 		},
@@ -53,7 +83,16 @@ export function useChatSocket({
 		if (!conversationId) return
 		if (socketRef.current?.connected) {
 			socketRef.current.emit('markRead', { conversationId })
+		} else {
+			void (async () => {
+				const { markConversationRead } = await import('@/api/chat')
+				await markConversationRead(conversationId)
+			})()
 		}
+		queryClient.setQueryData<Record<string, number>>(
+			['unread-counts'],
+			prev => ({ ...(prev ?? {}), [conversationId]: 0 }),
+		)
 		queryClient.invalidateQueries({ queryKey: ['unread-counts'] })
 	}, [conversationId, queryClient])
 
@@ -62,6 +101,14 @@ export function useChatSocket({
 
 		setStatus('connecting')
 		setMessages([])
+		const fetchId = ++historyFetchIdRef.current
+		void (async () => {
+			const { getConversationMessages } = await import('@/api/chat')
+			const history = await getConversationMessages(conversationId, 1, 50)
+			if (historyFetchIdRef.current === fetchId) {
+				setMessages(history.data)
+			}
+		})()
 
 		const currentToken = (
 			socketRef.current?.auth as { token?: string } | undefined
@@ -92,6 +139,7 @@ export function useChatSocket({
 				if (prev.some(m => m.id === msg.id)) return prev
 				return [...prev, msg]
 			})
+			markRead()
 			queryClient.invalidateQueries({ queryKey: ['unread-counts'] })
 			queryClient.invalidateQueries({ queryKey: ['conversations'] })
 		}
@@ -123,7 +171,7 @@ export function useChatSocket({
 			socket.off('connect_error', onError)
 			socket.off('disconnect', onDisconnect)
 		}
-	}, [conversationId, token, enabled, queryClient])
+	}, [conversationId, token, enabled, queryClient, markRead])
 
 	useEffect(() => {
 		return () => {

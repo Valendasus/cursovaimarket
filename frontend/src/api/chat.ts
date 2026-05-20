@@ -4,7 +4,11 @@ export interface DirectMessage {
 	id: string
 	conversationId: string
 	senderId: string
-	content: string
+	content?: string | null
+	attachmentUrl?: string | null
+	attachmentName?: string | null
+	attachmentType?: string | null
+	attachmentSize?: number | null
 	isRead: boolean
 	createdAt: string
 	sender: {
@@ -22,11 +26,35 @@ export interface Conversation {
 		avatar?: string | null
 	}
 	lastMessage: {
-		content: string
+		content?: string | null
 		createdAt: string
 		senderId: string
+		attachmentName?: string | null
+		attachmentType?: string | null
 	} | null
 	updatedAt: string
+}
+
+export interface ChatAttachmentPayload {
+	url: string
+	name?: string
+	type?: string
+	size?: number
+}
+
+export interface SendMessagePayload {
+	content?: string
+	attachmentUrl?: string
+	attachmentName?: string
+	attachmentType?: string
+	attachmentSize?: number
+}
+
+export interface UploadChatFileResponse {
+	url: string
+	name: string
+	type: string
+	size: number
 }
 
 export interface MessageHistoryResponse {
@@ -68,17 +96,33 @@ export async function getConversationMessages(
 /** POST /chat/conversations/:id — send message (REST fallback) */
 export async function sendDirectMessageHttp(
 	conversationId: string,
-	content: string,
+	payload: SendMessagePayload,
 ): Promise<DirectMessage> {
 	const { data } = await apiClient.post<DirectMessage>(
 		`/v1/chat/conversations/${conversationId}`,
-		{ content },
+		payload,
+	)
+	return data
+}
+
+/** POST /chat/conversations/:id/files — upload attachment */
+export async function uploadChatFile(
+	conversationId: string,
+	file: File,
+): Promise<UploadChatFileResponse> {
+	const formData = new FormData()
+	formData.append('file', file)
+	const { data } = await apiClient.post<UploadChatFileResponse>(
+		`/v1/chat/conversations/${conversationId}/files`,
+		formData,
 	)
 	return data
 }
 
 /** PATCH /chat/conversations/:id/read */
-export async function markConversationRead(conversationId: string): Promise<void> {
+export async function markConversationRead(
+	conversationId: string,
+): Promise<void> {
 	await apiClient.patch(`/v1/chat/conversations/${conversationId}/read`)
 }
 

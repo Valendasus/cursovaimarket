@@ -1,7 +1,16 @@
 import type { DirectMessage } from '@/api/chat'
 import { useChatSocket } from '@/hooks/useChatSocket'
+import { formatFileSize } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Loader2, MessageCircle, Send, Wifi, WifiOff } from 'lucide-react'
+import {
+	Loader2,
+	MessageCircle,
+	Paperclip,
+	Send,
+	Wifi,
+	WifiOff,
+	X,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 interface ChatPaneProps {
@@ -24,6 +33,7 @@ function MessageBubble({
 		hour: '2-digit',
 		minute: '2-digit',
 	})
+	const isImage = Boolean(msg.attachmentType?.startsWith('image/'))
 
 	return (
 		<div
@@ -46,28 +56,63 @@ function MessageBubble({
 
 			{/* Bubble */}
 			<div
-				className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}
+				className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-1`}
 			>
 				{!isMine && (
 					<span className='text-[10px] text-muted-foreground px-1'>
 						{msg.sender.name}
 					</span>
 				)}
-				<div
-					className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-						isMine
-							? 'bg-primary text-primary-foreground rounded-br-sm'
-							: 'bg-muted text-foreground rounded-bl-sm'
-					}`}
-				>
-					{msg.content}
-				</div>
+				{msg.attachmentUrl && (
+					<a
+						href={msg.attachmentUrl}
+						target='_blank'
+						rel='noreferrer'
+						className={`overflow-hidden rounded-2xl border border-white/10 ${
+							isImage
+								? 'bg-black/30'
+								: isMine
+									? 'bg-primary text-primary-foreground'
+									: 'bg-muted text-foreground'
+						}`}
+					>
+						{isImage ? (
+							<img
+								src={msg.attachmentUrl}
+								alt={msg.attachmentName ?? 'Изображение'}
+								className='max-h-64 w-full object-cover'
+							/>
+						) : (
+							<div className='px-3 py-2 text-sm'>
+								<p className='font-medium break-all'>
+									{msg.attachmentName ?? 'Файл'}
+								</p>
+								{typeof msg.attachmentSize === 'number' && (
+									<p className='text-[10px] opacity-80'>
+										{formatFileSize(msg.attachmentSize)}
+									</p>
+								)}
+							</div>
+						)}
+					</a>
+				)}
+				{msg.content && msg.content.trim() && (
+					<div
+						className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+							isMine
+								? 'bg-primary text-primary-foreground rounded-br-sm'
+								: 'bg-muted text-foreground rounded-bl-sm'
+						}`}
+					>
+						{msg.content}
+					</div>
+				)}
 				<span
-					className={`text-[10px] text-muted-foreground px-1 ${isMine ? 'text-right' : 'text-left'}`}
+					className={`text-[10px] text-white px-1 ${isMine ? 'text-right' : 'text-left'}`}
 				>
 					{time}
 					{isMine && (
-						<span className='ml-1 opacity-60'>{msg.isRead ? '✓✓' : '✓'}</span>
+						<span className='ml-1 text-white'>{msg.isRead ? '✓✓' : '✓'}</span>
 					)}
 				</span>
 			</div>
@@ -110,9 +155,12 @@ export default function ChatPane({
 	onOpen,
 }: ChatPaneProps) {
 	const [input, setInput] = useState('')
+	const [selectedFile, setSelectedFile] = useState<File | null>(null)
+	const [fileError, setFileError] = useState('')
 	const [sending, setSending] = useState(false)
 	const bottomRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
+	const fileRef = useRef<HTMLInputElement>(null)
 
 	const { messages, status, sendMessage, markRead } = useChatSocket({
 		conversationId,
@@ -137,15 +185,30 @@ export default function ChatPane({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if (!trimmed || sending) return
+		if ((!trimmed && !selectedFile) || sending) return
 		setSending(true)
 		setInput('')
 		try {
-			await sendMessage(trimmed)
+			await sendMessage({
+				content: trimmed || undefined,
+				file: selectedFile ?? undefined,
+			})
+			setSelectedFile(null)
+			setFileError('')
 		} finally {
 			setSending(false)
 			inputRef.current?.focus()
 		}
+	}
+
+	const handleFilePick = (file: File | null) => {
+		if (!file) return
+		if (file.size > 20 * 1024 * 1024) {
+			setFileError('Максимальный размер файла — 20MB')
+			return
+		}
+		setFileError('')
+		setSelectedFile(file)
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -184,7 +247,7 @@ export default function ChatPane({
 						<StatusBar status={status} />
 
 						{/* Messages */}
-						<div className='flex flex-col gap-3 p-3 h-64 overflow-y-auto scroll-smooth'>
+						<div className='flex flex-col gap-3 p-3 h-64 overflow-y-auto scroll-smooth chat-wallpaper'>
 							{messages.length === 0 ? (
 								<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground py-8'>
 									<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
@@ -204,6 +267,23 @@ export default function ChatPane({
 
 						{/* Input */}
 						<div className='border-t border-border p-2 flex items-end gap-2'>
+							<input
+								ref={fileRef}
+								type='file'
+								className='hidden'
+								onChange={e => {
+									handleFilePick(e.target.files?.[0] ?? null)
+									e.target.value = ''
+								}}
+							/>
+							<button
+								type='button'
+								onClick={() => fileRef.current?.click()}
+								className='shrink-0 w-9 h-9 rounded-xl border border-border bg-muted/30 text-muted-foreground flex items-center justify-center hover:bg-muted/60 hover:text-foreground transition'
+								title='Прикрепить файл'
+							>
+								<Paperclip className='w-4 h-4' />
+							</button>
 							<textarea
 								ref={inputRef}
 								value={input}
@@ -222,7 +302,7 @@ export default function ChatPane({
 							/>
 							<button
 								onClick={() => void handleSend()}
-								disabled={!input.trim() || sending}
+								disabled={(!input.trim() && !selectedFile) || sending}
 								className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95'
 								title='Отправить (Enter)'
 							>
@@ -233,6 +313,31 @@ export default function ChatPane({
 								)}
 							</button>
 						</div>
+						{(selectedFile || fileError) && (
+							<div className='px-2 pb-2 flex items-center gap-2 text-xs text-muted-foreground'>
+								{selectedFile && (
+									<div className='flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1'>
+										<span className='max-w-[220px] truncate'>
+											{selectedFile.name}
+										</span>
+										<span className='opacity-70'>
+											{formatFileSize(selectedFile.size)}
+										</span>
+										<button
+											type='button'
+											onClick={() => setSelectedFile(null)}
+											className='text-muted-foreground hover:text-foreground'
+											title='Убрать файл'
+										>
+											<X className='w-3 h-3' />
+										</button>
+									</div>
+								)}
+								{fileError && (
+									<span className='text-destructive'>{fileError}</span>
+								)}
+							</div>
+						)}
 					</div>
 				</motion.div>
 			)}

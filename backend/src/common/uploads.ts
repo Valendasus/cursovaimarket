@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'path'
 
 const DEFAULT_UPLOADS_DIR = 'uploads'
 const DEFAULT_AVATAR_SUBDIR = 'avatars'
+const DEFAULT_MESSAGE_SUBDIR = 'messages'
 
 export function resolveUploadsRoot(): string {
 	const uploadsDir = process.env.UPLOADS_DIR || DEFAULT_UPLOADS_DIR
@@ -17,8 +18,20 @@ export function resolveAvatarDir(): string {
 	return dir
 }
 
+export function resolveMessageDir(): string {
+	const subdir = process.env.MESSAGE_SUBDIR || DEFAULT_MESSAGE_SUBDIR
+	const dir = join(resolveUploadsRoot(), subdir)
+	ensureDir(dir)
+	return dir
+}
+
 export function buildAvatarPath(filename: string): string {
 	const subdir = process.env.AVATAR_SUBDIR || DEFAULT_AVATAR_SUBDIR
+	return `/uploads/${subdir}/${filename}`
+}
+
+export function buildMessagePath(filename: string): string {
+	const subdir = process.env.MESSAGE_SUBDIR || DEFAULT_MESSAGE_SUBDIR
 	return `/uploads/${subdir}/${filename}`
 }
 

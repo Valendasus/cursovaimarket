@@ -54,6 +54,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			)
 			client.data.userId = payload.sub
 			client.data.userName = payload.name ?? 'Пользователь'
+			await client.join(`user:${client.data.userId}`)
 		} catch {
 			client.emit('error', { message: 'Недействительный токен' })
 			client.disconnect()
@@ -62,7 +63,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 	handleDisconnect(client: AuthenticatedSocket) {
 		for (const key of this.eventRateMap.keys()) {
-			if (key.startsWith(`${client.id}:`)) {
+			if (
+				key.startsWith(`${client.id}:`) ||
+				key.startsWith(`${client.data.userId}:`)
+			) {
 				this.eventRateMap.delete(key)
 			}
 		}
@@ -70,12 +74,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 	private checkRateLimit(
 		clientId: string,
+		userId: string | undefined,
 		event: 'sendMessage' | 'markRead',
 		limit: number,
 		windowMs: number,
 	) {
 		const now = Date.now()
-		const key = `${clientId}:${event}`
+		const key = `${userId ?? clientId}:${event}`
 		const timestamps = this.eventRateMap.get(key) ?? []
 		const recent = timestamps.filter(timestamp => now - timestamp < windowMs)
 
@@ -96,8 +101,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		const { conversationId } = data
 		if (!conversationId) throw new WsException('conversationId обязателен')
 
+		let conv: { userAId: string; userBId: string }
 		try {
-			await this.chatService.assertParticipant(
+			conv = await this.chatService.assertParticipant(
 				conversationId,
 				client.data.userId,
 			)
@@ -122,20 +128,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 	@SubscribeMessage('sendMessage')
 	async handleSendMessage(
 		@ConnectedSocket() client: AuthenticatedSocket,
-		@MessageBody() data: { conversationId: string; content: string },
+		@MessageBody()
+		data: {
+			conversationId: string
+			content?: string
+			attachmentUrl?: string
+			attachmentName?: string
+			attachmentType?: string
+			attachmentSize?: number
+		},
 	) {
-		this.checkRateLimit(client.id, 'sendMessage', 20, 10_000)
+		this.checkRateLimit(
+			client.id,
+			client.data.userId,
+			'sendMessage',
+			20,
+			10_000,
+		)
 
 		const { conversationId, content } = data
 
 		if (!conversationId) throw new WsException('conversationId обязателен')
-		if (!content?.trim())
+		const hasText = Boolean(content?.trim())
+		const hasAttachment = Boolean(data.attachmentUrl)
+		if (!hasText && !hasAttachment) {
 			throw new WsException('Сообщение не может быть пустым')
-		if (content.length > 2000)
+		}
+		if (content && content.length > 2000)
 			throw new WsException('Сообщение не может превышать 2000 символов')
 
+		let conv: { userAId: string; userBId: string }
 		try {
-			await this.chatService.assertParticipant(
+			conv = await this.chatService.assertParticipant(
 				conversationId,
 				client.data.userId,
 			)
@@ -146,10 +170,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		const message = await this.chatService.saveMessage(
 			conversationId,
 			client.data.userId,
-			content.trim(),
+			content,
+			data.attachmentUrl
+				? {
+						url: data.attachmentUrl,
+						name: data.attachmentName,
+						type: data.attachmentType,
+						size: data.attachmentSize,
+					}
+				: undefined,
 		)
 
 		this.server.to(`chat:${conversationId}`).emit('newMessage', message)
+		this.server.to(`user:${conv.userAId}`).emit('newMessage', message)
+		this.server.to(`user:${conv.userBId}`).emit('newMessage', message)
 	}
 
 	/** Client marks messages as read */
@@ -158,7 +192,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		@ConnectedSocket() client: AuthenticatedSocket,
 		@MessageBody() data: { conversationId: string },
 	) {
-		this.checkRateLimit(client.id, 'markRead', 60, 10_000)
+		this.checkRateLimit(client.id, client.data.userId, 'markRead', 60, 10_000)
 
 		const { conversationId } = data
 		if (!conversationId) return
