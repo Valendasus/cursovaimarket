@@ -1,8 +1,9 @@
 import type { DirectMessage } from '@/api/chat'
 import { useChatSocket } from '@/hooks/useChatSocket'
-import { formatFileSize } from '@/lib/utils'
+import { formatFileSize, truncate } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+	FileText,
 	Loader2,
 	MessageCircle,
 	Paperclip,
@@ -83,15 +84,20 @@ function MessageBubble({
 								className='max-h-64 w-full object-cover'
 							/>
 						) : (
-							<div className='px-3 py-2 text-sm'>
-								<p className='font-medium break-all'>
-									{msg.attachmentName ?? 'Файл'}
-								</p>
-								{typeof msg.attachmentSize === 'number' && (
-									<p className='text-[10px] opacity-80'>
-										{formatFileSize(msg.attachmentSize)}
+							<div className='flex items-center gap-3 px-3 py-2 text-sm'>
+								<div className='h-9 w-9 rounded-xl bg-black/20 flex items-center justify-center'>
+									<FileText className='h-4 w-4 text-white' />
+								</div>
+								<div className='min-w-0'>
+									<p className='font-medium truncate'>
+										{truncate(msg.attachmentName ?? 'Файл', 15)}
 									</p>
-								)}
+									{typeof msg.attachmentSize === 'number' && (
+										<p className='text-[10px] opacity-80'>
+											{formatFileSize(msg.attachmentSize)}
+										</p>
+									)}
+								</div>
 							</div>
 						)}
 					</a>
@@ -161,6 +167,7 @@ export default function ChatPane({
 	const bottomRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 	const fileRef = useRef<HTMLInputElement>(null)
+	const canSend = Boolean(input.trim() || selectedFile)
 
 	const { messages, status, sendMessage, markRead } = useChatSocket({
 		conversationId,
@@ -185,7 +192,7 @@ export default function ChatPane({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if ((!trimmed && !selectedFile) || sending) return
+		if (!canSend || sending) return
 		setSending(true)
 		setInput('')
 		try {
@@ -302,7 +309,7 @@ export default function ChatPane({
 							/>
 							<button
 								onClick={() => void handleSend()}
-								disabled={(!input.trim() && !selectedFile) || sending}
+								disabled={!canSend || sending}
 								className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95'
 								title='Отправить (Enter)'
 							>

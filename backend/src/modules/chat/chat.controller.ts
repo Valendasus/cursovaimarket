@@ -142,10 +142,13 @@ export class ChatController {
 		if (!file) {
 			throw new BadRequestException('Файл не загружен')
 		}
+		const originalName = Buffer.from(file.originalname, 'latin1').toString(
+			'utf8',
+		)
 		const path = buildMessagePath(file.filename)
 		return {
 			url: buildPublicUrl(path, req),
-			name: file.originalname,
+			name: originalName,
 			type: file.mimetype,
 			size: file.size,
 		}

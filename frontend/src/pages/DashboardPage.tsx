@@ -22,7 +22,7 @@ import {
 } from '@/api/services'
 import { useChatNotifications } from '@/hooks/useChatNotifications'
 import { useChatSocket } from '@/hooks/useChatSocket'
-import { formatFileSize } from '@/lib/utils'
+import { formatFileSize, truncate } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type {
 	FreelancerProfile,
@@ -38,6 +38,7 @@ import {
 	Briefcase,
 	Check,
 	Clock,
+	FileText,
 	LayoutDashboard,
 	Loader2,
 	LogOut,
@@ -429,6 +430,7 @@ function InlineChatContent({
 	const scrollRef = useRef<HTMLDivElement | null>(null)
 	const inputRef = useRef<HTMLTextAreaElement | null>(null)
 	const fileRef = useRef<HTMLInputElement | null>(null)
+	const canSend = Boolean(input.trim() || selectedFile)
 
 	useEffect(() => {
 		markRead()
@@ -441,7 +443,7 @@ function InlineChatContent({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if ((!trimmed && !selectedFile) || sending) return
+		if (!canSend || sending) return
 		setSending(true)
 		setInput('')
 		try {
@@ -545,15 +547,20 @@ function InlineChatContent({
 													className='max-h-64 w-full object-cover'
 												/>
 											) : (
-												<div className='px-3 py-2 text-sm'>
-													<p className='font-medium break-all'>
-														{msg.attachmentName ?? 'Файл'}
-													</p>
-													{typeof msg.attachmentSize === 'number' && (
-														<p className='text-[10px] opacity-80'>
-															{formatFileSize(msg.attachmentSize)}
+												<div className='flex items-center gap-3 px-3 py-2 text-sm'>
+													<div className='h-9 w-9 rounded-xl bg-black/20 flex items-center justify-center'>
+														<FileText className='h-4 w-4 text-white' />
+													</div>
+													<div className='min-w-0'>
+														<p className='font-medium truncate'>
+															{truncate(msg.attachmentName ?? 'Файл', 15)}
 														</p>
-													)}
+														{typeof msg.attachmentSize === 'number' && (
+															<p className='text-[10px] opacity-80'>
+																{formatFileSize(msg.attachmentSize)}
+															</p>
+														)}
+													</div>
 												</div>
 											)}
 										</a>
@@ -620,7 +627,7 @@ function InlineChatContent({
 				/>
 				<button
 					onClick={() => void handleSend()}
-					disabled={(!input.trim() && !selectedFile) || sending}
+					disabled={!canSend || sending}
 					className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-all active:scale-95'
 				>
 					{sending ? (

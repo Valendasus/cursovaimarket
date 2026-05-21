@@ -2,7 +2,11 @@ import { useAuthStore } from '@/store/authStore'
 import type { User } from '@/types'
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const RAW_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const NORMALIZED_BASE_URL = RAW_BASE_URL.replace(/\/+$/, '')
+const BASE_URL = NORMALIZED_BASE_URL.endsWith('/api')
+	? NORMALIZED_BASE_URL
+	: `${NORMALIZED_BASE_URL}/api`
 
 export const apiClient = axios.create({
 	baseURL: BASE_URL,

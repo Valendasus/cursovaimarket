@@ -115,6 +115,9 @@ export async function uploadChatFile(
 	const { data } = await apiClient.post<UploadChatFileResponse>(
 		`/v1/chat/conversations/${conversationId}/files`,
 		formData,
+		{
+			headers: { 'Content-Type': 'multipart/form-data' },
+		},
 	)
 	return data
 }
