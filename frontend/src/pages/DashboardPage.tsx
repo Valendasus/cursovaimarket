@@ -35,6 +35,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import {
+	ArrowLeft,
 	Briefcase,
 	Check,
 	Clock,
@@ -159,11 +160,11 @@ function OrderCard({
 		order.status === 'completed' || order.status === 'cancelled'
 
 	return (
-		<div className='p-4 rounded-xl border border-border hover:bg-muted/20 transition-colors'>
+		<div className='p-3 sm:p-4 rounded-xl border border-border hover:bg-muted/20 transition-colors'>
 			{statusError && (
 				<p className='text-xs text-destructive mb-2'>{statusError}</p>
 			)}
-			<div className='flex items-start justify-between gap-4'>
+			<div className='flex flex-col sm:flex-row sm:items-start justify-between gap-3'>
 				<div className='flex-1 min-w-0'>
 					<p className='font-medium text-foreground text-sm truncate'>
 						{order.service?.title ?? 'Услуга'}
@@ -171,6 +172,11 @@ function OrderCard({
 					<p className='text-xs text-muted-foreground mt-0.5'>
 						Пакет: {order.package?.name ?? '—'}
 					</p>
+					{order.requirements && (
+						<p className='text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words line-clamp-2'>
+							Комментарий: {truncate(order.requirements, 200)}
+						</p>
+					)}
 					<p className='text-xs text-muted-foreground flex items-center gap-1 mt-1'>
 						<Clock className='w-3 h-3' />
 						{new Date(order.createdAt).toLocaleDateString('ru-RU', {
@@ -180,7 +186,7 @@ function OrderCard({
 						})}
 					</p>
 				</div>
-				<div className='flex flex-col items-end gap-2 shrink-0'>
+				<div className='flex items-center justify-between sm:flex-col sm:items-end gap-2 shrink-0 w-full sm:w-auto'>
 					<span
 						className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLOR[order.status] ?? 'bg-muted text-muted-foreground'}`}
 					>
@@ -294,8 +300,7 @@ function OrderCard({
 							</>
 						)}
 						{role === 'student' &&
-							(order.status === 'pending' ||
-								order.status === 'in_progress') && (
+							(order.status === 'pending' || order.status === 'accepted') && (
 								<button
 									onClick={() => changeStatus('cancelled')}
 									disabled={isPending}
@@ -431,6 +436,16 @@ function InlineChatContent({
 	const inputRef = useRef<HTMLTextAreaElement | null>(null)
 	const fileRef = useRef<HTMLInputElement | null>(null)
 	const canSend = Boolean(input.trim() || selectedFile)
+	const maxInputHeight = 116
+
+	const resizeInput = () => {
+		const el = inputRef.current
+		if (!el) return
+		el.style.height = 'auto'
+		const nextHeight = Math.min(el.scrollHeight, maxInputHeight)
+		el.style.height = `${nextHeight}px`
+		el.style.overflowY = el.scrollHeight > maxInputHeight ? 'auto' : 'hidden'
+	}
 
 	useEffect(() => {
 		markRead()
@@ -440,6 +455,10 @@ function InlineChatContent({
 		const el = scrollRef.current
 		if (el) el.scrollTop = el.scrollHeight
 	}, [messages])
+
+	useEffect(() => {
+		resizeInput()
+	}, [input])
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
@@ -567,7 +586,7 @@ function InlineChatContent({
 									)}
 									{msg.content && msg.content.trim() && (
 										<div
-											className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+											className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-all whitespace-pre-wrap ${
 												isMine
 													? 'bg-primary text-primary-foreground rounded-br-sm'
 													: 'bg-muted text-foreground rounded-bl-sm'
@@ -623,7 +642,7 @@ function InlineChatContent({
 					placeholder='Напишите сообщение...'
 					rows={1}
 					maxLength={2000}
-					className='flex-1 resize-none rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[38px] max-h-20 leading-5'
+					className='flex-1 resize-none rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[38px] leading-5'
 				/>
 				<button
 					onClick={() => void handleSend()}
@@ -692,6 +711,7 @@ function MessagesTab({
 	})
 
 	const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
+	const hasSelection = Boolean(selectedConvId)
 	const lastPartnerIdRef = useRef<string | undefined>(undefined)
 
 	// When coming from "Написать" button — auto-find/create conversation
@@ -710,9 +730,17 @@ function MessagesTab({
 
 	return (
 		<div className='glass-card rounded-2xl overflow-hidden'>
-			<div className='flex h-[520px]'>
+			<div
+				className={`flex flex-col sm:flex-row ${
+					hasSelection ? 'h-[70vh] sm:h-[520px]' : 'h-auto sm:h-[520px]'
+				}`}
+			>
 				{/* Sidebar — conversations list */}
-				<div className='w-64 shrink-0 border-r border-border flex flex-col'>
+				<div
+					className={`w-full sm:w-64 shrink-0 border-r border-border flex flex-col ${
+						hasSelection ? 'hidden sm:flex' : 'flex'
+					}`}
+				>
 					<div className='flex items-center gap-2 px-4 py-3 border-b border-border'>
 						<MessageSquare className='w-4 h-4 text-primary' />
 						<span className='text-sm font-semibold text-foreground'>
@@ -770,10 +798,13 @@ function MessagesTab({
 														{conv.lastMessage.senderId === currentUserId
 															? 'Вы: '
 															: ''}
-														{conv.lastMessage.content?.trim() ||
-															(conv.lastMessage.attachmentName
-																? `Файл: ${conv.lastMessage.attachmentName}`
-																: 'Файл')}
+														{truncate(
+															conv.lastMessage.content?.trim() ||
+																(conv.lastMessage.attachmentName
+																	? `Файл: ${conv.lastMessage.attachmentName}`
+																	: 'Файл'),
+															32,
+														)}
 													</p>
 												)}
 											</div>
@@ -791,11 +822,23 @@ function MessagesTab({
 				</div>
 
 				{/* Chat area */}
-				<div className='flex-1 flex flex-col min-w-0'>
+				<div
+					className={`flex-1 flex flex-col min-w-0 ${
+						hasSelection ? 'flex' : 'hidden sm:flex'
+					}`}
+				>
 					{selectedConvId ? (
 						<>
 							{/* Chat header */}
 							<div className='flex items-center gap-3 px-4 py-3 border-b border-border shrink-0'>
+								<button
+									type='button'
+									onClick={() => setSelectedConvId(null)}
+									className='sm:hidden -ml-1 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition'
+									aria-label='Назад к списку'
+								>
+									<ArrowLeft className='w-4 h-4' />
+								</button>
 								<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden shrink-0'>
 									{selectedConv?.partner.avatar ? (
 										<img
@@ -2202,6 +2245,9 @@ export default function DashboardPage() {
 		queryKey: ['my-orders'],
 		queryFn: getMyOrders,
 		enabled: !!user,
+		refetchInterval: 15000,
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
 	})
 
 	const activeCount = orders.filter(
@@ -2226,7 +2272,7 @@ export default function DashboardPage() {
 	}
 
 	return (
-		<div className='min-h-screen bg-background'>
+		<div className='bg-background'>
 			<div className='container-custom pt-24 pb-8'>
 				<motion.div
 					initial={{ opacity: 0, y: 16 }}

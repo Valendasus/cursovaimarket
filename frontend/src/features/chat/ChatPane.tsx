@@ -104,7 +104,7 @@ function MessageBubble({
 				)}
 				{msg.content && msg.content.trim() && (
 					<div
-						className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+						className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-all whitespace-pre-wrap ${
 							isMine
 								? 'bg-primary text-primary-foreground rounded-br-sm'
 								: 'bg-muted text-foreground rounded-bl-sm'
@@ -168,6 +168,16 @@ export default function ChatPane({
 	const inputRef = useRef<HTMLTextAreaElement>(null)
 	const fileRef = useRef<HTMLInputElement>(null)
 	const canSend = Boolean(input.trim() || selectedFile)
+	const maxInputHeight = 116
+
+	const resizeInput = () => {
+		const el = inputRef.current
+		if (!el) return
+		el.style.height = 'auto'
+		const nextHeight = Math.min(el.scrollHeight, maxInputHeight)
+		el.style.height = `${nextHeight}px`
+		el.style.overflowY = el.scrollHeight > maxInputHeight ? 'auto' : 'hidden'
+	}
 
 	const { messages, status, sendMessage, markRead } = useChatSocket({
 		conversationId,
@@ -189,6 +199,10 @@ export default function ChatPane({
 			onOpen?.()
 		}
 	}, [isOpen, markRead, onOpen])
+
+	useEffect(() => {
+		resizeInput()
+	}, [input])
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
@@ -299,13 +313,7 @@ export default function ChatPane({
 								placeholder='Напишите сообщение... (Enter — отправить)'
 								rows={1}
 								maxLength={2000}
-								className='flex-1 resize-none rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[38px] max-h-24 overflow-y-auto leading-5'
-								style={{
-									height: Math.min(
-										96,
-										Math.max(38, input.split('\n').length * 22 + 16),
-									),
-								}}
+								className='flex-1 resize-none rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[38px] leading-5'
 							/>
 							<button
 								onClick={() => void handleSend()}

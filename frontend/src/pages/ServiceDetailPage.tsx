@@ -349,8 +349,12 @@ export default function ServiceDetailPage() {
 												onChange={e => setRequirements(e.target.value)}
 												placeholder='Опишите тему, особые пожелания, дедлайн...'
 												rows={4}
+												maxLength={200}
 												className='w-full rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none'
 											/>
+											<p className='text-xs text-muted-foreground mt-1 text-right'>
+												{requirements.length}/200
+											</p>
 										</div>
 									</motion.div>
 								)}

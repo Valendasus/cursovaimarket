@@ -244,10 +244,10 @@ export default function Header() {
 									</a>
 								),
 							)}
-							<div className='flex gap-2 mt-3 pt-3 border-t border-border'>
-								{isAuthenticated ? (
+							<div className='flex flex-col gap-2 mt-3 pt-3 border-t border-border'>
+								{isAuthenticated && user ? (
 									<>
-										<Button variant='outline' className='flex-1' asChild>
+										<Button variant='outline' className='w-full' asChild>
 											<Link
 												to='/dashboard'
 												search={{}}
@@ -256,18 +256,29 @@ export default function Header() {
 												Кабинет
 											</Link>
 										</Button>
-										<Button variant='ghost' className='flex-1' onClick={logout}>
+										{user.role === 'freelancer' && (
+											<Button variant='secondary' className='w-full' asChild>
+												<Link
+													to='/freelancers/$freelancerId'
+													params={{ freelancerId: user.id }}
+													onClick={() => setMobileOpen(false)}
+												>
+													Профиль
+												</Link>
+											</Button>
+										)}
+										<Button variant='ghost' className='w-full' onClick={logout}>
 											Выйти
 										</Button>
 									</>
 								) : (
 									<>
-										<Button variant='outline' className='flex-1' asChild>
+										<Button variant='outline' className='w-full' asChild>
 											<Link to='/login' onClick={() => setMobileOpen(false)}>
 												Войти
 											</Link>
 										</Button>
-										<Button className='flex-1' asChild>
+										<Button className='w-full' asChild>
 											<Link to='/register' onClick={() => setMobileOpen(false)}>
 												Начать
 											</Link>

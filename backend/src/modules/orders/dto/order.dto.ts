@@ -14,10 +14,10 @@ export class CreateOrderDto {
 	@IsNotEmpty()
 	packageId: string
 
-	@ApiPropertyOptional({ example: 'Требования к заказу...', maxLength: 2000 })
+	@ApiPropertyOptional({ example: 'Требования к заказу...', maxLength: 200 })
 	@IsOptional()
 	@IsString()
-	@MaxLength(2000)
+	@MaxLength(200)
 	requirements?: string
 }
 

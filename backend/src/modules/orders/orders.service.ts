@@ -128,11 +128,7 @@ export class OrdersService {
 		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
 			[OrderStatus.PENDING]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
 			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
-			[OrderStatus.IN_PROGRESS]: [
-				OrderStatus.REVIEW,
-				OrderStatus.COMPLETED,
-				OrderStatus.CANCELLED,
-			],
+			[OrderStatus.IN_PROGRESS]: [OrderStatus.REVIEW, OrderStatus.COMPLETED],
 			[OrderStatus.REVIEW]: [OrderStatus.COMPLETED, OrderStatus.REVISION],
 			[OrderStatus.REVISION]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
 		}
