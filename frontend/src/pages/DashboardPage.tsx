@@ -62,8 +62,11 @@ export default function DashboardPage() {
 		refetchOnMount: true,
 	})
 
+	// Активен любой незакрытый заказ. Перечислять статусы поимённо нельзя:
+	// раньше так выпадали review и revision, а с появлением подтверждения
+	// выпал бы и accepted — оплаченный заказ исчезал бы из счётчика.
 	const activeCount = orders.filter(
-		o => o.status === 'pending' || o.status === 'in_progress',
+		o => o.status !== 'completed' && o.status !== 'cancelled',
 	).length
 	const completedCount = orders.filter(o => o.status === 'completed').length
 
