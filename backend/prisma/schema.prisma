@@ -49,6 +49,22 @@ enum OrderStatus {
   CANCELLED
 }
 
+// Состояние денег живёт отдельно от OrderStatus: статус заказа — про работу,
+// статусы ниже — про деньги. Иначе OrderStatus распухает и становится нечитаемым.
+
+enum PaymentStatus {
+  PENDING // списание инициировано, ждём ответ провайдера
+  SUCCEEDED // деньги списаны с заказчика
+  FAILED // провайдер отказал (нет средств, отклонена карта)
+  REFUNDED // возврат заказчику
+}
+
+enum PayoutStatus {
+  PENDING // выплата поставлена в очередь
+  SENT // деньги ушли исполнителю
+  FAILED // провайдер отказал в выплате
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -67,13 +83,13 @@ model User {
   profile FreelancerProfile?
 
   // Relations
-  services           Service[]                 @relation("FreelancerServices")
-  buyerOrders        Order[]                   @relation("BuyerOrders")
-  freelancerOrders   Order[]                   @relation("FreelancerOrders")
-  reviews            Review[]                  @relation("AuthorReviews")
+  services           Service[]                @relation("FreelancerServices")
+  buyerOrders        Order[]                  @relation("BuyerOrders")
+  freelancerOrders   Order[]                  @relation("FreelancerOrders")
+  reviews            Review[]                 @relation("AuthorReviews")
   chatMessages       ChatMessage[]
-  conversationsAsA   Conversation[]            @relation("ConversationA")
-  conversationsAsB   Conversation[]            @relation("ConversationB")
+  conversationsAsA   Conversation[]           @relation("ConversationA")
+  conversationsAsB   Conversation[]           @relation("ConversationB")
   directMessages     DirectMessage[]
   refreshSessions    RefreshSession[]
   emailVerifications EmailVerificationToken[]
@@ -152,7 +168,7 @@ model Service {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
-  freelancer User              @relation("FreelancerServices", fields: [freelancerId], references: [id])
+  freelancer User             @relation("FreelancerServices", fields: [freelancerId], references: [id])
   packages   ServicePackage[]
   orders     Order[]
   reviews    Review[]
@@ -161,13 +177,13 @@ model Service {
 }
 
 model ServicePackage {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   serviceId    String
-  name         String  // Базовый / Стандарт / Премиум
+  name         String // Базовый / Стандарт / Премиум
   description  String?
-  price        Int     // in kopecks (RUB * 100)
+  price        Int // in kopecks (RUB * 100)
   deliveryDays Int
-  revisions    Int     @default(1)
+  revisions    Int      @default(1)
   features     String[]
 
   service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
@@ -184,10 +200,15 @@ model Order {
   freelancerId String
   status       OrderStatus @default(PENDING)
   requirements String?
-  totalPrice   Int         // in kopecks
+  totalPrice   Int // in kopecks
   deadline     DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  // Подтверждение исполнителем: он должен успеть до confirmDeadline,
+  // иначе заказ отменяется. Деньги на этом этапе ещё не списаны.
+  confirmDeadline DateTime?
+  confirmedAt     DateTime?
 
   service    Service        @relation(fields: [serviceId], references: [id])
   package    ServicePackage @relation(fields: [packageId], references: [id])
@@ -195,19 +216,62 @@ model Order {
   freelancer User           @relation("FreelancerOrders", fields: [freelancerId], references: [id])
   review     Review?
   messages   ChatMessage[]
+  payment    Payment?
+  payout     Payout?
 
   @@map("orders")
 }
 
+// ─── Деньги ──────────────────────────────────────────────────────────────────
+
+/// Списание с заказчика. Создаётся в момент подтверждения заказа исполнителем.
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique // один заказ — одно списание
+  amount        Int // сколько списано с заказчика, в копейках
+  fee           Int           @default(0) // комиссия платформы, в копейках
+  status        PaymentStatus @default(PENDING)
+  /// Идентификатор платежа на стороне провайдера — по нему сверяемся в вебхуке
+  providerRef   String?
+  failureReason String?
+  createdAt     DateTime      @default(now())
+  paidAt        DateTime?
+  updatedAt     DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("payments")
+}
+
+/// Выплата исполнителю. Уходит сразу после успешного списания —
+/// сумма заказа минус комиссия платформы.
+model Payout {
+  id            String       @id @default(cuid())
+  orderId       String       @unique
+  amount        Int // сколько ушло исполнителю (amount платежа минус fee)
+  status        PayoutStatus @default(PENDING)
+  providerRef   String?
+  failureReason String?
+  createdAt     DateTime     @default(now())
+  sentAt        DateTime?
+  updatedAt     DateTime     @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("payouts")
+}
+
 model Review {
-  id          String   @id @default(cuid())
-  serviceId   String
-  orderId     String   @unique
-  authorId    String
-  rating      Int      // 1-5
-  comment     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  serviceId String
+  orderId   String   @unique
+  authorId  String
+  rating    Int // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   service Service @relation(fields: [serviceId], references: [id])
   order   Order   @relation(fields: [orderId], references: [id])
@@ -249,7 +313,7 @@ model Conversation {
 }
 
 model DirectMessage {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   conversationId String
   senderId       String
   content        String?
@@ -257,8 +321,8 @@ model DirectMessage {
   attachmentName String?
   attachmentType String?
   attachmentSize Int?
-  isRead         Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)

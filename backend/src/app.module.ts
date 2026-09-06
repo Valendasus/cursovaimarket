@@ -7,6 +7,7 @@ import { S3Module } from './common/s3/s3.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { ChatModule } from './modules/chat/chat.module'
 import { OrdersModule } from './modules/orders/orders.module'
+import { PaymentsModule } from './modules/payments/payments.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { ServicesModule } from './modules/services/services.module'
 import { UsersModule } from './modules/users/users.module'
@@ -30,6 +31,7 @@ import { PrismaModule } from './prisma/prisma.module'
 		UsersModule,
 		ServicesModule,
 		OrdersModule,
+		PaymentsModule,
 		ReviewsModule,
 		ChatModule,
 	],
