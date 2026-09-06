@@ -34,30 +34,6 @@ const fadeUp = {
 	visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
 }
 
-/** Карточки шагов выезжают по очереди: вся четвёрка укладывается в ~0.6 с */
-const stepsGrid = {
-	hidden: {},
-	visible: { transition: { staggerChildren: 0.08 } },
-}
-
-const stepItem = {
-	hidden: { opacity: 0, y: 20 },
-	visible: {
-		opacity: 1,
-		y: 0,
-		transition: { duration: 0.4, ease: 'easeOut' as const },
-	},
-}
-
-/** Ниточка между карточками прочерчивается уже после того, как карточка встала */
-const connectorLine = {
-	hidden: { scaleX: 0 },
-	visible: {
-		scaleX: 1,
-		transition: { duration: 0.35, delay: 0.25, ease: 'easeOut' as const },
-	},
-}
-
 /** Плитки категорий выкладываются волной */
 const categoryGrid = {
 	hidden: {},
@@ -225,22 +201,6 @@ const platformFeatures = [
 export default function HomePage() {
 	const heroRef = useRef<HTMLDivElement>(null)
 	const [howTab, setHowTab] = useState<'student' | 'freelancer'>('student')
-	/*
-	 * rootMargin 200px — запускаем каскад ЗАРАНЕЕ, пока блок ещё за экраном.
-	 * Если ждать появления в кадре, при быстром скролле IntersectionObserver
-	 * успевает отработать уже после того, как блок пролетел мимо: анимация
-	 * проигрывается вслепую, а пользователь видит пустое место и находит
-	 * карточки, только проскроллив обратно. С запасом такого не бывает —
-	 * к моменту, когда блок доезжает до экрана, он уже проявлен.
-	 */
-	const { ref: stepsRef, inView: stepsInView } = useInView({
-		triggerOnce: true,
-		threshold: 0,
-		rootMargin: '200px 0px 200px 0px',
-	})
-	// после первого показа вкладки переключаются мгновенно, без повторного
-	// каскада и без кадра, на котором карточки невидимы
-	const [stepsRevealed, setStepsRevealed] = useState(false)
 	const { ref: statsRef, inView: statsInView } = useInView({
 		triggerOnce: true,
 		threshold: 0.3,
@@ -586,29 +546,12 @@ export default function HomePage() {
 						</div>
 					</div>
 
-					{/* Steps */}
-
-					{/*
-					 * Стагger живёт на контейнере, а появление привязано к useInView,
-					 * а не к whileInView. Так при переключении вкладки (меняется key,
-					 * блок перемонтируется) карточки сразу начинают анимацию, вместо
-					 * того чтобы мигнуть невидимыми в ожидании, пока whileInView
-					 * заметит, что они и так на экране.
-					 */}
-					<motion.div
-						key={howTab}
-						ref={stepsRef}
-						variants={stepsGrid}
-						initial={stepsRevealed ? false : 'hidden'}
-						animate={stepsInView ? 'visible' : 'hidden'}
-						onAnimationComplete={() => setStepsRevealed(true)}
-						className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
-					>
+					{/* Steps — без анимации появления: карточки просто стоят */}
+					<div className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'>
 						{(howTab === 'student' ? studentSteps : freelancerSteps).map(
 							(step, i) => (
-								<motion.div
+								<div
 									key={step.num}
-									variants={stepItem}
 									className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300'
 								>
 									{/* connector line */}
@@ -616,10 +559,7 @@ export default function HomePage() {
 										(howTab === 'student' ? studentSteps : freelancerSteps)
 											.length -
 											1 && (
-										<motion.div
-											variants={connectorLine}
-											className='hidden xl:block absolute top-10 -right-4 w-8 h-px origin-left bg-border z-10'
-										/>
+										<div className='hidden xl:block absolute top-10 -right-4 w-8 h-px bg-border z-10' />
 									)}
 
 									<div
@@ -643,10 +583,10 @@ export default function HomePage() {
 									<p className='text-sm text-muted-foreground leading-relaxed'>
 										{step.description}
 									</p>
-								</motion.div>
+								</div>
 							),
 						)}
-					</motion.div>
+					</div>
 
 					{/* Platform features */}
 					<Section>
