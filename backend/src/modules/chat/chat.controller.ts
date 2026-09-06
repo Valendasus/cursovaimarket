@@ -1,4 +1,5 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'
 import { S3Service } from '@/common/s3/s3.service'
 import {
 	BadRequestException,
@@ -79,6 +80,10 @@ export class ChatController {
 
 	/** POST /chat/conversations/:id — send message via REST fallback */
 	@Post('conversations/:conversationId')
+	// Тот же email-гейт, что и в WebSocket-пути (chat.gateway): без него
+	// неподтверждённый пользователь при отвале сокета отправлял бы сообщения
+	// через REST-фолбэк в обход проверки.
+	@UseGuards(EmailVerifiedGuard)
 	@Throttle({ default: { limit: 60, ttl: 60_000 } })
 	@ApiOperation({ summary: 'Отправить сообщение (fallback)' })
 	async sendMessage(

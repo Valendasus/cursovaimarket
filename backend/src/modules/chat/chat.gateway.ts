@@ -261,9 +261,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 		await client.join(`chat:${conversationId}`)
 		await this.chatService.markAsRead(conversationId, client.data.userId)
-
-		const history = await this.chatService.getMessages(conversationId, 1, 50)
-		client.emit('history', history)
+		// Историю грузит клиент по HTTP (полностью, с пагинацией). Дублировать
+		// её ещё и через сокет незачем — joinRoom нужен только для входа в
+		// комнату и отметки прочитанного.
 	}
 
 	/** Client sends a new message */

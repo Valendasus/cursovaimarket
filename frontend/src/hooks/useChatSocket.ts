@@ -377,28 +377,6 @@ export function useChatSocket({
 			}
 		}
 
-		const onHistory = (payload: { data: DirectMessage[] }) => {
-			setMessages(prev => {
-				const seenIds = new Set(prev.map(m => m.id))
-				const seenClientIds = new Set(
-					prev.map(m => m.clientMessageId).filter(Boolean) as string[],
-				)
-				const merged = [...prev]
-				payload.data.forEach(msg => {
-					if (seenIds.has(msg.id)) return
-					if (msg.clientMessageId && seenClientIds.has(msg.clientMessageId)) {
-						return
-					}
-					merged.push(msg)
-				})
-				merged.sort(
-					(a, b) =>
-						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-				)
-				return merged
-			})
-		}
-
 		const onNewMessage = (msg: DirectMessage) => {
 			setMessages(prev => {
 				if (msg.clientMessageId) {
@@ -418,7 +396,14 @@ export function useChatSocket({
 				delete pendingStoreRef.current[msg.clientMessageId]
 				persistPending()
 			}
-			if (msg.senderId && msg.senderId !== (currentUser?.id ?? '')) {
+			// Помечаем прочитанным только если вкладка на виду. Пришло сообщение,
+			// пока вкладка свёрнута, — оставляем непрочитанным (его пометит
+			// visibilitychange, когда пользователь вернётся, — см. эффект ниже).
+			if (
+				msg.senderId &&
+				msg.senderId !== (currentUser?.id ?? '') &&
+				document.visibilityState === 'visible'
+			) {
 				markRead()
 			}
 			queryClient.invalidateQueries({ queryKey: ['unread-counts'] })
@@ -496,7 +481,6 @@ export function useChatSocket({
 			setStatus(prev => (prev !== 'error' ? 'idle' : prev))
 
 		socket.on('connect', onConnect)
-		socket.on('history', onHistory)
 		socket.on('newMessage', onNewMessage)
 		socket.on('messagesRead', onMessagesRead)
 		socket.on('messageAck', onMessageAck)
@@ -510,7 +494,6 @@ export function useChatSocket({
 
 		return () => {
 			socket.off('connect', onConnect)
-			socket.off('history', onHistory)
 			socket.off('newMessage', onNewMessage)
 			socket.off('messagesRead', onMessagesRead)
 			socket.off('messageAck', onMessageAck)
@@ -546,6 +529,17 @@ export function useChatSocket({
 	useEffect(() => {
 		setIsPartnerTyping(false)
 	}, [conversationId])
+
+	// Пользователь вернулся на вкладку с открытым чатом — отмечаем прочитанным
+	// сообщения, пришедшие пока вкладка была свёрнута.
+	useEffect(() => {
+		if (!conversationId) return
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') markRead()
+		}
+		document.addEventListener('visibilitychange', onVisible)
+		return () => document.removeEventListener('visibilitychange', onVisible)
+	}, [conversationId, markRead])
 
 	useEffect(() => {
 		sendQueueRef.current = []
