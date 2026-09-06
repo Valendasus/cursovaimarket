@@ -1,5 +1,6 @@
 import { extractApiError } from '@/api/client'
 import { createOrder } from '@/api/orders'
+import { PaymentModeBanner } from '@/features/dashboard/PaymentModeBanner'
 import { getServiceById } from '@/api/services'
 import ReviewsSection from '@/features/reviews/ReviewsSection'
 import { CATEGORY_THEME } from '@/lib/categoryTheme'
@@ -397,6 +398,11 @@ export default function ServiceDetailPage() {
 								</p>
 							) : isAuthenticated ? (
 								<>
+									{showOrderForm && (
+										<div className='mb-3'>
+											<PaymentModeBanner />
+										</div>
+									)}
 									{!showOrderForm ? (
 										<button
 											onClick={() => setShowOrderForm(true)}

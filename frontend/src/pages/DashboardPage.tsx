@@ -1,5 +1,6 @@
 import { getMyOrders } from '@/api/orders'
 import { OrderCard } from '@/features/dashboard/OrderCard'
+import { PaymentModeBanner } from '@/features/dashboard/PaymentModeBanner'
 import { MessagesTab } from '@/features/dashboard/MessagesTab'
 import { ReviewsTab } from '@/features/dashboard/ReviewsTab'
 import { ServicesTab } from '@/features/dashboard/ServicesTab'
@@ -217,6 +218,9 @@ export default function DashboardPage() {
 										<h2 className='font-semibold text-foreground mb-4'>
 											Последние заказы
 										</h2>
+										<div className='mb-4'>
+											<PaymentModeBanner />
+										</div>
 										{ordersLoading ? (
 											<div className='space-y-3'>
 												{[0, 1, 2].map(i => (

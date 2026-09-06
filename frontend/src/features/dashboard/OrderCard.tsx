@@ -1,12 +1,13 @@
 import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
-import { updateOrderStatus } from '@/api/orders'
+import { confirmOrder, updateOrderStatus } from '@/api/orders'
 import { createReview } from '@/api/reviews'
 import { truncate } from '@/lib/utils'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Clock, MessageCircle, Star } from 'lucide-react'
+import { Check, Clock, MessageCircle, Star, Wallet } from 'lucide-react'
 import { useState } from 'react'
+import { ConfirmCountdown } from './ConfirmCountdown'
 
 const STATUS_LABEL: Record<string, string> = {
 	pending: 'Ожидает',
@@ -26,6 +27,14 @@ const STATUS_COLOR: Record<string, string> = {
 	revision: 'bg-orange-500/10 text-orange-600',
 	completed: 'bg-green-500/10 text-green-600',
 	cancelled: 'bg-red-500/10 text-red-500',
+}
+
+function formatRub(amount: number): string {
+	return new Intl.NumberFormat('ru-RU', {
+		style: 'currency',
+		currency: 'RUB',
+		maximumFractionDigits: 0,
+	}).format(amount)
 }
 
 export function OrderCard({
@@ -76,6 +85,22 @@ export function OrderCard({
 		},
 	})
 
+	/**
+	 * Подтверждение проводит оплату. Отказ в оплате приходит успешным ответом
+	 * с отменённым заказом — бэкенд намеренно не бросает исключение, чтобы
+	 * инвалидация сработала и карточка обновилась.
+	 */
+	const { mutate: confirm, isPending: confirming } = useMutation({
+		mutationFn: () => confirmOrder(order.id),
+		onSuccess: () => {
+			setStatusError('')
+			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+		},
+		onError: (err: unknown) => {
+			setStatusError(extractApiError(err, 'Не удалось подтвердить заказ'))
+		},
+	})
+
 	const { mutate: submitReview, isPending: reviewPending } = useMutation({
 		mutationFn: () =>
 			createReview(order.id, reviewRating, reviewComment || undefined),
@@ -122,7 +147,33 @@ export function OrderCard({
 							month: 'long',
 							year: 'numeric',
 						})}
+						{order.status === 'pending' && order.confirmDeadline && (
+							<>
+								<span className='opacity-40'>·</span>
+								<ConfirmCountdown deadline={order.confirmDeadline} />
+							</>
+						)}
 					</p>
+
+					{/* Оплата: успех показываем исполнителю (он получил деньги),
+					    отказ — обеим сторонам, чтобы было понятно, почему отмена */}
+					{order.payment?.status === 'succeeded' && (
+						<p className='text-xs text-green-600 flex items-center gap-1 mt-1'>
+							<Check className='w-3 h-3' />
+							{role === 'freelancer'
+								? `Оплачено, вам зачислено ${formatRub(order.payment.amount - order.payment.fee)}`
+								: `Оплачено ${formatRub(order.payment.amount)}`}
+						</p>
+					)}
+					{order.payment?.status === 'failed' && (
+						<p className='text-xs text-destructive flex items-center gap-1 mt-1'>
+							<Wallet className='w-3 h-3 shrink-0' />
+							Оплата не прошла
+							{order.payment.failureReason
+								? `: ${order.payment.failureReason}`
+								: ''}
+						</p>
+					)}
 				</div>
 				<div className='flex items-center justify-between sm:flex-col sm:items-end gap-2 shrink-0 w-full sm:w-auto'>
 					<span
@@ -147,18 +198,22 @@ export function OrderCard({
 				{/* Status buttons */}
 				{!isTerminal && (
 					<>
+						{/* Из PENDING вперёд только через подтверждение — оно же
+						    проводит оплату. Прямого «Взять в работу» здесь нет:
+						    бэкенд такой переход отклонит. */}
 						{role === 'freelancer' && order.status === 'pending' && (
 							<>
 								<button
-									onClick={() => changeStatus('in_progress')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+									onClick={() => confirm()}
+									disabled={confirming}
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium flex items-center justify-center gap-1'
 								>
-									Взять в работу
+									<Check className='w-3 h-3' />
+									{confirming ? 'Подтверждаем...' : 'Подтвердить заказ'}
 								</button>
 								<button
 									onClick={() => changeStatus('cancelled')}
-									disabled={isPending}
+									disabled={isPending || confirming}
 									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отклонить
