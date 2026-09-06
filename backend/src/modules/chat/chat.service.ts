@@ -1,3 +1,4 @@
+import { clampPagination } from '@/common/pagination'
 import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
@@ -149,8 +150,11 @@ export class ChatService {
 	}
 
 	/** Paginated message history (oldest first) */
-	async getMessages(conversationId: string, page = 1, limit = 50) {
-		const skip = (page - 1) * limit
+	async getMessages(conversationId: string, rawPage = 1, rawLimit = 50) {
+		const { page, limit, skip } = clampPagination(rawPage, rawLimit, {
+			defaultLimit: 50,
+			maxLimit: 100,
+		})
 		const [data, total] = await Promise.all([
 			this.prisma.directMessage.findMany({
 				where: { conversationId },

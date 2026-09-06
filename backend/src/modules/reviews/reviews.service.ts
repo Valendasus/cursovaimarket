@@ -1,4 +1,5 @@
 import { S3Service } from '@/common/s3/s3.service'
+import { clampPagination } from '@/common/pagination'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	BadRequestException,
@@ -83,8 +84,11 @@ export class ReviewsService {
 		return this.withSignedAvatars(review)
 	}
 
-	async findForService(serviceId: string, page = 1, limit = 10) {
-		const skip = (page - 1) * limit
+	async findForService(serviceId: string, rawPage = 1, rawLimit = 10) {
+		const { page, limit, skip } = clampPagination(rawPage, rawLimit, {
+			defaultLimit: 10,
+			maxLimit: 50,
+		})
 		const [data, total] = await Promise.all([
 			this.prisma.review.findMany({
 				where: { serviceId },
@@ -104,8 +108,11 @@ export class ReviewsService {
 	}
 
 	/** Отзывы, написанные пользователем (история студента) */
-	async findByAuthor(authorId: string, page = 1, limit = 20) {
-		const skip = (page - 1) * limit
+	async findByAuthor(authorId: string, rawPage = 1, rawLimit = 20) {
+		const { page, limit, skip } = clampPagination(rawPage, rawLimit, {
+			defaultLimit: 20,
+			maxLimit: 50,
+		})
 		const [data, total] = await Promise.all([
 			this.prisma.review.findMany({
 				where: { authorId },
@@ -133,8 +140,11 @@ export class ReviewsService {
 	}
 
 	/** Отзывы, полученные фрилансером (по всем его услугам) */
-	async findForFreelancer(freelancerId: string, page = 1, limit = 20) {
-		const skip = (page - 1) * limit
+	async findForFreelancer(freelancerId: string, rawPage = 1, rawLimit = 20) {
+		const { page, limit, skip } = clampPagination(rawPage, rawLimit, {
+			defaultLimit: 20,
+			maxLimit: 50,
+		})
 		const [data, total] = await Promise.all([
 			this.prisma.review.findMany({
 				where: { service: { freelancerId } },

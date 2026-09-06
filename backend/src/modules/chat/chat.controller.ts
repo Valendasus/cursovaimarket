@@ -22,6 +22,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import { memoryStorage } from 'multer'
 import { extname } from 'path'
+import { isAllowedChatAttachment } from './chat-attachments'
 import { ChatGateway } from './chat.gateway'
 import { ChatService } from './chat.service'
 import { CreateConversationDto, SendMessageDto } from './dto/chat.dto'
@@ -141,6 +142,23 @@ export class ChatController {
 	@UseInterceptors(
 		FileInterceptor('file', {
 			storage: memoryStorage(),
+			// Whitelist типов: раньше принимался любой файл (в т.ч. .html/.svg
+			// с активным содержимым), тип брался из клиентского Content-Type.
+			fileFilter: (_req, file, cb) => {
+				const originalName = Buffer.from(
+					file.originalname,
+					'latin1',
+				).toString('utf8')
+				if (!isAllowedChatAttachment(originalName, file.mimetype)) {
+					return cb(
+						new BadRequestException(
+							'Недопустимый тип файла',
+						) as unknown as Error,
+						false,
+					)
+				}
+				return cb(null, true)
+			},
 			limits: { fileSize: 20 * 1024 * 1024 },
 		}),
 	)
