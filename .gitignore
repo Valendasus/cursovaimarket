@@ -20,3 +20,6 @@ Thumbs.db
 backend/.env
 backend/.env.*
 !backend/.env.example
+
+# Uploads — файлы живут в S3, в git не нужны
+backend/uploads/
