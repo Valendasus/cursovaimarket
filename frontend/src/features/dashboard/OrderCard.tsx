@@ -7,6 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Clock, MessageCircle, Star } from 'lucide-react'
 import { useState } from 'react'
+
 const STATUS_LABEL: Record<string, string> = {
 	pending: 'Ожидает',
 	accepted: 'Принят',
@@ -46,11 +47,29 @@ export function OrderCard({
 	const [reviewError, setReviewError] = useState('')
 	const [reviewHover, setReviewHover] = useState(0)
 
+	/**
+	 * Завершение заказа и новый отзыв меняют на бэкенде счётчики и рейтинг
+	 * (service.ordersCount / rating, profile.completedOrders / rating).
+	 * Сбрасываем и списки, которые их показывают, иначе они висят со старыми
+	 * числами до перезагрузки страницы.
+	 */
+	const invalidateRatingConsumers = () => {
+		queryClient.invalidateQueries({ queryKey: ['service', order.serviceId] })
+		queryClient.invalidateQueries({
+			queryKey: ['freelancer', order.freelancerId],
+		})
+		queryClient.invalidateQueries({ queryKey: ['services'] })
+		queryClient.invalidateQueries({ queryKey: ['popular-services'] })
+		queryClient.invalidateQueries({ queryKey: ['featured-services'] })
+		queryClient.invalidateQueries({ queryKey: ['top-freelancers'] })
+	}
+
 	const { mutate: changeStatus, isPending } = useMutation({
 		mutationFn: (status: string) => updateOrderStatus(order.id, status),
-		onSuccess: () => {
+		onSuccess: (_data, status) => {
 			setStatusError('')
 			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+			if (status === 'completed') invalidateRatingConsumers()
 		},
 		onError: (err: unknown) => {
 			setStatusError(extractApiError(err, 'Не удалось изменить статус'))
@@ -65,6 +84,10 @@ export function OrderCard({
 			setShowReview(false)
 			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
 			queryClient.invalidateQueries({ queryKey: ['my-reviews'] })
+			// то же, что делает ReviewsSection при отзыве со страницы услуги
+			queryClient.invalidateQueries({ queryKey: ['received-reviews'] })
+			queryClient.invalidateQueries({ queryKey: ['reviews', order.serviceId] })
+			invalidateRatingConsumers()
 		},
 		onError: (err: unknown) => {
 			setReviewError(extractApiError(err, 'Не удалось отправить отзыв'))
