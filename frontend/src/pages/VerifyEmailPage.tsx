@@ -11,19 +11,17 @@ type Status = 'loading' | 'success' | 'error'
 export default function VerifyEmailPage() {
 	const { token } = useSearch({ strict: false }) as { token?: string }
 	const updateUser = useAuthStore(s => s.updateUser)
-	const [status, setStatus] = useState<Status>('loading')
-	const [message, setMessage] = useState('')
+	// Отсутствие токена видно сразу при рендере — незачем гонять эффект,
+	// чтобы поставить состояние, известное заранее
+	const [status, setStatus] = useState<Status>(token ? 'loading' : 'error')
+	const [message, setMessage] = useState(
+		token ? '' : 'Ссылка некорректна: отсутствует токен подтверждения.',
+	)
 	const called = useRef(false)
 
 	useEffect(() => {
-		if (called.current) return
+		if (!token || called.current) return
 		called.current = true
-
-		if (!token) {
-			setStatus('error')
-			setMessage('Ссылка некорректна: отсутствует токен подтверждения.')
-			return
-		}
 
 		verifyEmailApi(token)
 			.then(res => {
