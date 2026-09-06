@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { MockPaymentProvider } from './mock-payment.provider'
 import { PaymentProvider } from './payment-provider.interface'
+import { PaymentsController } from './payments.controller'
 import { PaymentsService } from './payments.service'
 
 /**
@@ -8,6 +9,7 @@ import { PaymentsService } from './payments.service'
  * на YooKassaProvider в одной строке ниже. Остальной код не меняется.
  */
 @Module({
+	controllers: [PaymentsController],
 	providers: [
 		PaymentsService,
 		{ provide: PaymentProvider, useClass: MockPaymentProvider },

@@ -1,19 +1,27 @@
 import { S3Service } from '@/common/s3/s3.service'
+import { PaymentsService } from '@/modules/payments/payments.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	BadRequestException,
 	ForbiddenException,
 	Injectable,
+	Logger,
 	NotFoundException,
 } from '@nestjs/common'
-import { OrderStatus, UserRole } from '@prisma/client'
+import { OrderStatus, PaymentStatus, UserRole } from '@prisma/client'
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto'
+
+/** Сколько у исполнителя есть на подтверждение заказа */
+const CONFIRM_TIMEOUT_HOURS = 24
 
 @Injectable()
 export class OrdersService {
+	private readonly logger = new Logger(OrdersService.name)
+
 	constructor(
 		private prisma: PrismaService,
 		private s3Service: S3Service,
+		private payments: PaymentsService,
 	) {}
 
 	async create(studentId: string, dto: CreateOrderDto) {
@@ -27,6 +35,10 @@ export class OrdersService {
 		if (pkg.service.freelancerId === studentId)
 			throw new BadRequestException('Нельзя заказать собственную услугу')
 
+		const confirmDeadline = new Date(
+			Date.now() + CONFIRM_TIMEOUT_HOURS * 60 * 60 * 1000,
+		)
+
 		const order = await this.prisma.order.create({
 			data: {
 				studentId,
@@ -36,6 +48,7 @@ export class OrdersService {
 				totalPrice: pkg.price,
 				requirements: dto.requirements,
 				status: OrderStatus.PENDING,
+				confirmDeadline,
 			},
 			include: {
 				service: true,
@@ -54,6 +67,8 @@ export class OrdersService {
 				? { freelancerId: userId }
 				: { studentId: userId }
 
+		await this.expireStaleOrders(where)
+
 		const orders = await this.prisma.order.findMany({
 			where,
 			include: {
@@ -62,6 +77,7 @@ export class OrdersService {
 				student: { select: { id: true, name: true, avatar: true } },
 				freelancer: { select: { id: true, name: true, avatar: true } },
 				review: true,
+				payment: true,
 			},
 			orderBy: { createdAt: 'desc' },
 		})
@@ -69,6 +85,8 @@ export class OrdersService {
 	}
 
 	async findOne(id: string, userId: string) {
+		await this.expireStaleOrders({ id })
+
 		const order = await this.prisma.order.findUnique({
 			where: { id },
 			include: {
@@ -77,6 +95,7 @@ export class OrdersService {
 				student: { select: { id: true, name: true, avatar: true } },
 				freelancer: { select: { id: true, name: true, avatar: true } },
 				review: true,
+				payment: true,
 			},
 		})
 
@@ -86,6 +105,75 @@ export class OrdersService {
 		}
 
 		return this.withSignedAvatars(order)
+	}
+
+	/**
+	 * Подтверждение заказа исполнителем: PENDING → ACCEPTED, затем списание
+	 * с заказчика и, если оно прошло, выплата исполнителю.
+	 *
+	 * Отказ в оплате — ожидаемый исход, а не ошибка: заказ отменяется, и клиент
+	 * читает причину из order.payment.failureReason. Исключение здесь ломало бы
+	 * инвалидацию кэша на фронте и заказ висел бы PENDING в интерфейсе, будучи
+	 * уже отменённым в базе.
+	 */
+	async confirm(id: string, userId: string) {
+		await this.expireStaleOrders({ id })
+
+		const order = await this.prisma.order.findUnique({ where: { id } })
+		if (!order) throw new NotFoundException('Заказ не найден')
+		if (order.freelancerId !== userId) {
+			throw new ForbiddenException('Подтвердить заказ может только исполнитель')
+		}
+		if (order.status !== OrderStatus.PENDING) {
+			throw new BadRequestException(
+				order.status === OrderStatus.CANCELLED
+					? 'Заказ отменён — срок подтверждения истёк'
+					: 'Заказ уже подтверждён',
+			)
+		}
+
+		await this.prisma.order.update({
+			where: { id },
+			data: { status: OrderStatus.ACCEPTED, confirmedAt: new Date() },
+		})
+
+		const paid = await this.payments.chargeAndPayout(order)
+
+		if (!paid) {
+			await this.prisma.order.update({
+				where: { id },
+				data: { status: OrderStatus.CANCELLED },
+			})
+			this.logger.warn(`Заказ ${id} отменён: оплата не прошла`)
+		}
+
+		return this.findOne(id, userId)
+	}
+
+	/**
+	 * Отменяет заказы, которые исполнитель не подтвердил за отведённое время.
+	 * Планировщика в проекте нет, поэтому проверяем при чтении — этого хватает:
+	 * просроченный заказ всё равно виден только через эти же методы.
+	 *
+	 * Деньги на этапе PENDING ещё не списаны, поэтому возврат не нужен.
+	 * Заказы без confirmDeadline (созданные до появления оплаты) не трогаем.
+	 */
+	private async expireStaleOrders(scope: {
+		id?: string
+		studentId?: string
+		freelancerId?: string
+	}) {
+		const { count } = await this.prisma.order.updateMany({
+			where: {
+				...scope,
+				status: OrderStatus.PENDING,
+				confirmDeadline: { not: null, lt: new Date() },
+			},
+			data: { status: OrderStatus.CANCELLED },
+		})
+		if (count > 0) {
+			this.logger.log(`Отменено просроченных заказов: ${count}`)
+		}
 	}
 
 	async updateStatus(id: string, userId: string, dto: UpdateOrderStatusDto) {
@@ -131,7 +219,10 @@ export class OrdersService {
 
 		// Sequential transition validation
 		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-			[OrderStatus.PENDING]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+			// Из PENDING в работу напрямую нельзя: единственный путь вперёд —
+			// confirm(), который проводит оплату. Иначе исполнитель начинал бы
+			// работу в обход подтверждения, а значит и в обход списания денег.
+			[OrderStatus.PENDING]: [OrderStatus.CANCELLED],
 			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
 			[OrderStatus.IN_PROGRESS]: [OrderStatus.REVIEW, OrderStatus.COMPLETED],
 			[OrderStatus.REVIEW]: [OrderStatus.COMPLETED, OrderStatus.REVISION],
@@ -142,6 +233,18 @@ export class OrdersService {
 			throw new BadRequestException(
 				`Переход из статуса ${order.status} в ${dto.status} недопустим`,
 			)
+		}
+
+		// Работа не начинается, пока деньги не списаны с заказчика
+		if (dto.status === OrderStatus.IN_PROGRESS) {
+			const payment = await this.prisma.payment.findUnique({
+				where: { orderId: id },
+			})
+			if (payment && payment.status !== PaymentStatus.SUCCEEDED) {
+				throw new BadRequestException(
+					'Нельзя взять заказ в работу: оплата не прошла',
+				)
+			}
 		}
 
 		const updated = await this.prisma.order.update({

@@ -44,6 +44,14 @@ export class OrdersController {
 		return this.ordersService.findOne(id, userId)
 	}
 
+	@Post(':id/confirm')
+	@ApiOperation({
+		summary: 'Подтвердить заказ (исполнитель). Проводит оплату и выплату',
+	})
+	confirm(@Param('id') id: string, @CurrentUser('id') userId: string) {
+		return this.ordersService.confirm(id, userId)
+	}
+
 	@Patch(':id/status')
 	@ApiOperation({ summary: 'Изменить статус заказа' })
 	updateStatus(
