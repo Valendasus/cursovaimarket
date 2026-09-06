@@ -18,6 +18,7 @@ interface ChatPaneProps {
 	/** Conversation id (userA↔userB pair, created automatically) */
 	conversationId: string
 	currentUserId: string
+	partnerId?: string
 	isOpen: boolean
 	/** Called when the pane becomes visible so we can mark messages as read */
 	onOpen?: () => void
@@ -26,15 +27,19 @@ interface ChatPaneProps {
 function MessageBubble({
 	msg,
 	isMine,
+	retryMessage,
 }: {
 	msg: DirectMessage
 	isMine: boolean
+	retryMessage: (clientMessageId: string) => void
 }) {
 	const time = new Date(msg.createdAt).toLocaleTimeString('ru-RU', {
 		hour: '2-digit',
 		minute: '2-digit',
 	})
 	const isImage = Boolean(msg.attachmentType?.startsWith('image/'))
+	const isPending = msg.localStatus === 'pending'
+	const isFailed = msg.localStatus === 'failed'
 
 	return (
 		<div
@@ -75,7 +80,7 @@ function MessageBubble({
 								: isMine
 									? 'bg-primary text-primary-foreground'
 									: 'bg-muted text-foreground'
-						}`}
+						} ${isPending ? 'opacity-70' : ''}`}
 					>
 						{isImage ? (
 							<img
@@ -108,19 +113,34 @@ function MessageBubble({
 							isMine
 								? 'bg-primary text-primary-foreground rounded-br-sm'
 								: 'bg-muted text-foreground rounded-bl-sm'
-						}`}
+						} ${isPending ? 'opacity-70' : ''}`}
 					>
 						{msg.content}
 					</div>
 				)}
 				<span
-					className={`text-[10px] text-white px-1 ${isMine ? 'text-right' : 'text-left'}`}
+					className={`text-[10px] px-1 ${
+						isPending || isFailed ? 'text-white/60' : 'text-white'
+					} ${isMine ? 'text-right' : 'text-left'}`}
 				>
 					{time}
 					{isMine && (
-						<span className='ml-1 text-white'>{msg.isRead ? '✓✓' : '✓'}</span>
+						<span className='ml-1 text-white'>
+							{isPending ? '...' : isFailed ? '!' : msg.isRead ? '✓✓' : '✓'}
+						</span>
 					)}
 				</span>
+				{isMine && isFailed && (
+					<button
+						onClick={() =>
+							msg.clientMessageId && retryMessage(msg.clientMessageId)
+						}
+						className='text-[10px] text-destructive hover:underline'
+						type='button'
+					>
+						Повторить
+					</button>
+				)}
 			</div>
 		</div>
 	)
@@ -157,6 +177,7 @@ function StatusBar({ status }: { status: string }) {
 export default function ChatPane({
 	conversationId,
 	currentUserId,
+	partnerId,
 	isOpen,
 	onOpen,
 }: ChatPaneProps) {
@@ -169,6 +190,7 @@ export default function ChatPane({
 	const fileRef = useRef<HTMLInputElement>(null)
 	const canSend = Boolean(input.trim() || selectedFile)
 	const maxInputHeight = 116
+	const typingTimeoutRef = useRef<number | null>(null)
 
 	const resizeInput = () => {
 		const el = inputRef.current
@@ -179,8 +201,20 @@ export default function ChatPane({
 		el.style.overflowY = el.scrollHeight > maxInputHeight ? 'auto' : 'hidden'
 	}
 
-	const { messages, status, sendMessage, markRead } = useChatSocket({
+	const {
+		messages,
+		status,
+		sendMessage,
+		retryMessage,
+		markRead,
+		setTyping,
+		isPartnerOnline,
+		isPartnerTyping,
+		sendError,
+		sendBlocked,
+	} = useChatSocket({
 		conversationId,
+		partnerId,
 		enabled: isOpen,
 	})
 
@@ -206,10 +240,11 @@ export default function ChatPane({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if (!canSend || sending) return
+		if (!canSend || sending || sendBlocked) return
 		setSending(true)
 		setInput('')
 		try {
+			setTyping(false)
 			await sendMessage({
 				content: trimmed || undefined,
 				file: selectedFile ?? undefined,
@@ -221,6 +256,36 @@ export default function ChatPane({
 			inputRef.current?.focus()
 		}
 	}
+
+	useEffect(() => {
+		if (!partnerId) return
+		const hasText = input.trim().length > 0
+		if (!hasText) {
+			setTyping(false)
+			if (typingTimeoutRef.current) {
+				window.clearTimeout(typingTimeoutRef.current)
+				typingTimeoutRef.current = null
+			}
+			return
+		}
+		setTyping(true)
+		if (typingTimeoutRef.current) {
+			window.clearTimeout(typingTimeoutRef.current)
+		}
+		typingTimeoutRef.current = window.setTimeout(() => {
+			setTyping(false)
+			typingTimeoutRef.current = null
+		}, 2000)
+	}, [input, partnerId, setTyping])
+
+	useEffect(() => {
+		return () => {
+			if (typingTimeoutRef.current) {
+				window.clearTimeout(typingTimeoutRef.current)
+				typingTimeoutRef.current = null
+			}
+		}
+	}, [])
 
 	const handleFilePick = (file: File | null) => {
 		if (!file) return
@@ -266,9 +331,20 @@ export default function ChatPane({
 
 						{/* Status bar */}
 						<StatusBar status={status} />
+						{partnerId && (
+							<div className='flex items-center gap-1.5 px-3 py-1 text-[11px] text-muted-foreground border-b border-border bg-muted/20'>
+								{isPartnerTyping
+									? 'набирает сообщение...'
+									: isPartnerOnline === null
+										? 'Личные сообщения'
+										: isPartnerOnline
+											? 'в сети'
+											: 'не в сети'}
+							</div>
+						)}
 
 						{/* Messages */}
-						<div className='flex flex-col gap-3 p-3 h-64 overflow-y-auto scroll-smooth chat-wallpaper'>
+						<div className='flex flex-col gap-3 p-3 h-[70vh] sm:h-[70vh] lg:h-[70vh] overflow-y-auto scroll-smooth chat-wallpaper'>
 							{messages.length === 0 ? (
 								<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground py-8'>
 									<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
@@ -280,6 +356,7 @@ export default function ChatPane({
 										key={msg.id}
 										msg={msg}
 										isMine={msg.senderId === currentUserId}
+										retryMessage={retryMessage}
 									/>
 								))
 							)}
@@ -317,7 +394,7 @@ export default function ChatPane({
 							/>
 							<button
 								onClick={() => void handleSend()}
-								disabled={!canSend || sending}
+								disabled={!canSend || sending || sendBlocked}
 								className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95'
 								title='Отправить (Enter)'
 							>
@@ -328,6 +405,11 @@ export default function ChatPane({
 								)}
 							</button>
 						</div>
+						{sendError && (
+							<div className='px-3 pb-2 text-[11px] text-destructive'>
+								{sendError}
+							</div>
+						)}
 						{(selectedFile || fileError) && (
 							<div className='px-2 pb-2 flex items-center gap-2 text-xs text-muted-foreground'>
 								{selectedFile && (

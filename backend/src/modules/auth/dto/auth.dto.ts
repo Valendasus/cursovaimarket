@@ -2,13 +2,16 @@ import { ApiProperty } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
 import {
 	IsEmail,
-	IsEnum,
+	IsIn,
 	IsNotEmpty,
 	IsString,
 	Matches,
 	MaxLength,
 	MinLength,
 } from 'class-validator'
+
+// Роли, доступные при публичной регистрации (ADMIN выдаётся только вручную)
+const SELF_REGISTER_ROLES = [UserRole.STUDENT, UserRole.FREELANCER] as const
 
 export class RegisterDto {
 	@ApiProperty({
@@ -36,8 +39,10 @@ export class RegisterDto {
 	@MaxLength(72, { message: 'Пароль максимум 72 символа' })
 	password: string
 
-	@ApiProperty({ enum: UserRole, default: UserRole.STUDENT })
-	@IsEnum(UserRole)
+	@ApiProperty({ enum: SELF_REGISTER_ROLES, default: UserRole.STUDENT })
+	@IsIn(SELF_REGISTER_ROLES, {
+		message: 'Можно зарегистрироваться только как STUDENT или FREELANCER',
+	})
 	role: UserRole = UserRole.STUDENT
 }
 
@@ -50,4 +55,18 @@ export class LoginDto {
 	@IsString()
 	@IsNotEmpty()
 	password: string
+}
+
+export class VerifyEmailDto {
+	@ApiProperty({ description: 'Токен из ссылки подтверждения' })
+	@IsString()
+	@IsNotEmpty({ message: 'Токен обязателен' })
+	@MaxLength(200)
+	token: string
+}
+
+export class ResendVerificationDto {
+	@ApiProperty({ example: 'ivan@example.com' })
+	@IsEmail({}, { message: 'Введите корректный email' })
+	email: string
 }

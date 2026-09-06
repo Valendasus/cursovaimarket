@@ -16,7 +16,12 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import type { Request, Response } from 'express'
 import { AuthService } from './auth.service'
-import { LoginDto, RegisterDto } from './dto/auth.dto'
+import {
+	LoginDto,
+	RegisterDto,
+	ResendVerificationDto,
+	VerifyEmailDto,
+} from './dto/auth.dto'
 
 const REFRESH_COOKIE = 'refresh_token'
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days in ms
@@ -90,9 +95,15 @@ export class AuthController {
 	@ApiBearerAuth()
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Выход из системы' })
-	logout(@Res({ passthrough: true }) res: Response) {
+	async logout(
+		@Req() req: Request,
+		@Res({ passthrough: true }) res: Response,
+	) {
+		const token: string | undefined = (req.cookies as Record<string, string>)[
+			REFRESH_COOKIE
+		]
 		clearRefreshCookie(res)
-		return this.authService.logout()
+		return this.authService.logout(token)
 	}
 
 	@Get('me')
@@ -100,6 +111,22 @@ export class AuthController {
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Получить текущего пользователя' })
 	getMe(@CurrentUser() user: any) {
-		return user
+		return this.authService.getMe(user)
+	}
+
+	@Throttle({ default: { limit: 10, ttl: 60_000 } })
+	@Post('verify-email')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Подтвердить email по токену из письма' })
+	verifyEmail(@Body() dto: VerifyEmailDto) {
+		return this.authService.verifyEmail(dto.token)
+	}
+
+	@Throttle({ default: { limit: 3, ttl: 60_000 } })
+	@Post('resend-verification')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Повторно отправить письмо подтверждения' })
+	resendVerification(@Body() dto: ResendVerificationDto) {
+		return this.authService.resendVerification(dto.email)
 	}
 }

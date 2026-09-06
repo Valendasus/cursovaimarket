@@ -1,3 +1,4 @@
+import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	ForbiddenException,
@@ -13,7 +14,10 @@ import {
 
 @Injectable()
 export class ServicesService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private s3Service: S3Service,
+	) {}
 
 	async findAll(filters: ServiceFiltersDto) {
 		const {
@@ -58,7 +62,10 @@ export class ServicesService {
 			this.prisma.service.count({ where }),
 		])
 
-		return { data, total, page, limit }
+		const signed = await Promise.all(
+			data.map(service => this.withSignedAvatars(service)),
+		)
+		return { data: signed, total, page, limit }
 	}
 
 	async findPopularByCategory(limit = 3) {
@@ -88,8 +95,16 @@ export class ServicesService {
 		const data = groups.filter(
 			(group): group is NonNullable<typeof group> => group !== null,
 		)
+		const signedGroups = await Promise.all(
+			data.map(async group => ({
+				...group,
+				services: await Promise.all(
+					group.services.map(service => this.withSignedAvatars(service)),
+				),
+			})),
+		)
 
-		return { data }
+		return { data: signedGroups }
 	}
 
 	async findOne(id: string) {
@@ -111,7 +126,7 @@ export class ServicesService {
 		})
 		if (!service || !service.isActive)
 			throw new NotFoundException('Услуга не найдена')
-		return service
+		return this.withSignedAvatars(service)
 	}
 
 	async create(freelancerId: string, dto: CreateServiceDto) {
@@ -160,10 +175,16 @@ export class ServicesService {
 			}
 		})
 
-		return this.prisma.service.findUnique({
+		const updated = await this.prisma.service.findUnique({
 			where: { id },
-			include: { packages: { orderBy: { price: 'asc' } } },
+			include: {
+				freelancer: {
+					select: { id: true, name: true, avatar: true, profile: true },
+				},
+				packages: { orderBy: { price: 'asc' } },
+			},
 		})
+		return updated ? this.withSignedAvatars(updated) : updated
 	}
 
 	async remove(id: string, userId: string) {
@@ -179,5 +200,38 @@ export class ServicesService {
 			data: { isActive: false },
 		})
 		return { message: 'Услуга удалена' }
+	}
+
+	private async withSignedAvatars<
+		T extends {
+			freelancer?: { avatar?: string | null }
+			reviews?: { author?: { avatar?: string | null } }[]
+		},
+	>(service: T): Promise<T> {
+		const freelancerAvatar = await this.s3Service.signUrl(
+			service.freelancer?.avatar ?? undefined,
+		)
+		const reviews = service.reviews
+			? await Promise.all(
+					service.reviews.map(async review => {
+						const authorAvatar = await this.s3Service.signUrl(
+							review.author?.avatar ?? undefined,
+						)
+						return {
+							...review,
+							author: review.author
+								? { ...review.author, avatar: authorAvatar ?? null }
+								: review.author,
+						}
+					}),
+				)
+			: service.reviews
+		return {
+			...service,
+			freelancer: service.freelancer
+				? { ...service.freelancer, avatar: freelancerAvatar ?? null }
+				: service.freelancer,
+			reviews,
+		}
 	}
 }

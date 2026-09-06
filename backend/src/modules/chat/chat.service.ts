@@ -1,3 +1,4 @@
+import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	ForbiddenException,
@@ -9,7 +10,10 @@ const USER_SELECT = { id: true, name: true, avatar: true } as const
 
 @Injectable()
 export class ChatService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private s3Service: S3Service,
+	) {}
 
 	// ── Conversations ──────────────────────────────────────────────────────────
 
@@ -59,12 +63,18 @@ export class ChatService {
 			orderBy: { updatedAt: 'desc' },
 		})
 
-		return conversations.map(conv => ({
-			id: conv.id,
-			partner: conv.userAId === userId ? conv.userB : conv.userA,
-			lastMessage: conv.messages[0] ?? null,
-			updatedAt: conv.updatedAt,
-		}))
+		const mapped = await Promise.all(
+			conversations.map(async conv => ({
+				id: conv.id,
+				partner: await this.withSignedAvatar(
+					conv.userAId === userId ? conv.userB : conv.userA,
+				),
+				lastMessage: conv.messages[0] ?? null,
+				updatedAt: conv.updatedAt,
+			})),
+		)
+
+		return mapped
 	}
 
 	/** Validate that userId is a participant of the conversation */
@@ -78,6 +88,26 @@ export class ChatService {
 			throw new ForbiddenException('Нет доступа к этой переписке')
 		}
 		return conv
+	}
+
+	/** Whether the user has a verified email (gates sending messages) */
+	async isEmailVerified(userId: string): Promise<boolean> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { emailVerified: true },
+		})
+		return Boolean(user?.emailVerified)
+	}
+
+	/** Check if two users have a conversation */
+	async hasConversation(userId: string, otherUserId: string) {
+		if (userId === otherUserId) return true
+		const [a, b] = [userId, otherUserId].sort()
+		const conv = await this.prisma.conversation.findUnique({
+			where: { userAId_userBId: { userAId: a, userBId: b } },
+			select: { id: true },
+		})
+		return Boolean(conv)
 	}
 
 	// ── Messages ──────────────────────────────────────────────────────────────
@@ -94,13 +124,16 @@ export class ChatService {
 			size?: number | null
 		},
 	) {
+		const normalizedAttachment = attachment?.url
+			? this.s3Service.normalizeRef(attachment.url)
+			: undefined
 		const [msg] = await this.prisma.$transaction([
 			this.prisma.directMessage.create({
 				data: {
 					conversationId,
 					senderId,
 					content: content?.trim() || null,
-					attachmentUrl: attachment?.url,
+					attachmentUrl: normalizedAttachment ?? null,
 					attachmentName: attachment?.name ?? null,
 					attachmentType: attachment?.type ?? null,
 					attachmentSize: attachment?.size ?? null,
@@ -112,7 +145,7 @@ export class ChatService {
 				data: { updatedAt: new Date() },
 			}),
 		])
-		return msg
+		return this.withSignedMessage(msg)
 	}
 
 	/** Paginated message history (oldest first) */
@@ -122,13 +155,41 @@ export class ChatService {
 			this.prisma.directMessage.findMany({
 				where: { conversationId },
 				include: { sender: { select: USER_SELECT } },
-				orderBy: { createdAt: 'asc' },
+				orderBy: { createdAt: 'desc' },
 				skip,
 				take: limit,
 			}),
 			this.prisma.directMessage.count({ where: { conversationId } }),
 		])
-		return { data, total, page, limit }
+		const signed = await Promise.all(
+			data.reverse().map(msg => this.withSignedMessage(msg)),
+		)
+		return { data: signed, total, page, limit }
+	}
+
+	private async withSignedMessage<
+		T extends {
+			attachmentUrl?: string | null
+			sender?: { avatar?: string | null }
+		},
+	>(message: T): Promise<T> {
+		const signedAttachment = await this.s3Service.signUrl(
+			message.attachmentUrl ?? undefined,
+		)
+		const signedSender = await this.withSignedAvatar(message.sender)
+		return {
+			...message,
+			attachmentUrl: signedAttachment ?? null,
+			sender: signedSender,
+		}
+	}
+
+	private async withSignedAvatar<T extends { avatar?: string | null }>(
+		user?: T,
+	): Promise<T | undefined> {
+		if (!user) return user
+		const avatar = await this.s3Service.signUrl(user.avatar ?? undefined)
+		return { ...user, avatar: avatar ?? null }
 	}
 
 	/** Mark all messages in a conversation not sent by userId as read */

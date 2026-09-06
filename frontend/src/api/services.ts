@@ -7,6 +7,7 @@ import type {
 	ServiceLevel,
 	ServicePackage,
 } from '@/types'
+import axios from 'axios'
 import apiClient from './client'
 
 // ─── Mappers (backend → frontend types) ─────────────────────────────────────
@@ -159,8 +160,9 @@ export async function getServiceById(id: string): Promise<Service | null> {
 	try {
 		const { data } = await apiClient.get(`/v1/services/${id}`)
 		return mapService(data)
-	} catch {
-		return null
+	} catch (err) {
+		if (axios.isAxiosError(err) && err.response?.status === 404) return null
+		throw err
 	}
 }
 
@@ -191,8 +193,9 @@ export async function getFreelancerById(
 	try {
 		const { data } = await apiClient.get(`/v1/users/${id}`)
 		return mapFreelancer(data)
-	} catch {
-		return null
+	} catch (err) {
+		if (axios.isAxiosError(err) && err.response?.status === 404) return null
+		throw err
 	}
 }
 

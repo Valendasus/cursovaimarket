@@ -34,7 +34,9 @@ export default function ServiceDetailPage() {
 	const {
 		data: service,
 		isLoading,
-		error,
+		isError,
+		isFetching,
+		refetch,
 	} = useQuery({
 		queryKey: ['service', serviceId],
 		queryFn: () => getServiceById(serviceId),
@@ -74,7 +76,26 @@ export default function ServiceDetailPage() {
 		)
 	}
 
-	if (error || !service) {
+	if (isError) {
+		return (
+			<div className='min-h-screen flex items-center justify-center'>
+				<div className='text-center'>
+					<p className='text-muted-foreground mb-4'>
+						Не удалось загрузить услугу
+					</p>
+					<button
+						onClick={() => void refetch()}
+						disabled={isFetching}
+						className='inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors'
+					>
+						{isFetching ? 'Обновляем...' : 'Попробовать снова'}
+					</button>
+				</div>
+			</div>
+		)
+	}
+
+	if (!service) {
 		return (
 			<div className='min-h-screen flex items-center justify-center'>
 				<div className='text-center'>

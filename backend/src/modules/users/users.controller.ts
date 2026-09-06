@@ -1,11 +1,7 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import { Roles } from '@/common/decorators/roles.decorator'
 import { RolesGuard } from '@/common/guards/roles.guard'
-import {
-	buildAvatarPath,
-	buildPublicUrl,
-	resolveAvatarDir,
-} from '@/common/uploads'
+import { S3Service } from '@/common/s3/s3.service'
 import {
 	BadRequestException,
 	Body,
@@ -17,7 +13,6 @@ import {
 	Patch,
 	Post,
 	Query,
-	Req,
 	UploadedFile,
 	UseGuards,
 	UseInterceptors,
@@ -32,8 +27,7 @@ import {
 	ApiTags,
 } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
-import type { Request } from 'express'
-import { diskStorage } from 'multer'
+import { memoryStorage } from 'multer'
 import { extname } from 'path'
 import {
 	SwitchRoleDto,
@@ -47,7 +41,10 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-	constructor(private readonly usersService: UsersService) {}
+	constructor(
+		private readonly usersService: UsersService,
+		private readonly s3Service: S3Service,
+	) {}
 
 	@Get('freelancers')
 	@ApiOperation({ summary: 'Список фрилансеров с пагинацией' })
@@ -94,23 +91,9 @@ export class UsersController {
 	})
 	@UseInterceptors(
 		FileInterceptor('file', {
-			storage: diskStorage({
-				destination: (req, file, cb) => {
-					cb(null, resolveAvatarDir())
-				},
-				filename: (
-					req: Request,
-					file: Express.Multer.File,
-					cb: (error: Error | null, filename: string) => void,
-				) => {
-					const ext = extname(file.originalname).toLowerCase()
-					const reqWithUser = req as Request & { user?: { id?: string } }
-					const userId = reqWithUser.user?.id ?? 'user'
-					cb(null, `${userId}-${Date.now()}${ext}`)
-				},
-			}),
+			storage: memoryStorage(),
 			fileFilter: (
-				req: Request,
+				_req: Express.Request,
 				file: Express.Multer.File,
 				cb: (error: Error | null, acceptFile: boolean) => void,
 			) => {
@@ -128,17 +111,21 @@ export class UsersController {
 		}),
 	)
 	@ApiOperation({ summary: 'Загрузить аватар' })
-	uploadAvatar(
+	async uploadAvatar(
 		@CurrentUser('id') userId: string,
 		@UploadedFile() file: Express.Multer.File,
-		@Req() req: Request,
 	) {
 		if (!file) {
 			throw new BadRequestException('Файл не загружен')
 		}
-		const avatarPath = buildAvatarPath(file.filename)
-		const avatarUrl = buildPublicUrl(avatarPath, req)
-		return this.usersService.updateAvatar(userId, avatarUrl)
+		const ext = extname(file.originalname).toLowerCase()
+		const key = `avatars/${userId}-${Date.now()}${ext}`
+		const s3Ref = await this.s3Service.uploadBuffer(
+			key,
+			file.buffer,
+			file.mimetype,
+		)
+		return this.usersService.updateAvatar(userId, s3Ref)
 	}
 
 	@Patch('me/profile')

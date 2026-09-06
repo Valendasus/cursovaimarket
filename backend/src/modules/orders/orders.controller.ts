@@ -1,5 +1,6 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import { Roles } from '@/common/decorators/roles.decorator'
+import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'
 import { RolesGuard } from '@/common/guards/roles.guard'
 import {
 	Body,
@@ -24,9 +25,9 @@ export class OrdersController {
 	constructor(private readonly ordersService: OrdersService) {}
 
 	@Post()
-	@UseGuards(RolesGuard)
+	@UseGuards(RolesGuard, EmailVerifiedGuard)
 	@Roles(UserRole.STUDENT)
-	@ApiOperation({ summary: 'Создать заказ (только студент)' })
+	@ApiOperation({ summary: 'Создать заказ (только студент, email подтверждён)' })
 	create(@CurrentUser('id') userId: string, @Body() dto: CreateOrderDto) {
 		return this.ordersService.create(userId, dto)
 	}

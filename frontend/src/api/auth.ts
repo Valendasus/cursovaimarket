@@ -7,6 +7,7 @@ interface BackendUser {
 	name: string
 	avatar?: string
 	role: 'STUDENT' | 'FREELANCER' | 'ADMIN'
+	emailVerified?: boolean
 	createdAt: string
 	profile?: {
 		bio: string
@@ -34,6 +35,7 @@ export function mapUser(u: BackendUser): User | FreelancerProfile {
 		name: u.name,
 		avatar: u.avatar,
 		role,
+		emailVerified: u.emailVerified,
 		createdAt: u.createdAt,
 	}
 
@@ -133,4 +135,20 @@ export async function switchRoleApi(role: 'STUDENT' | 'FREELANCER') {
 		{ role },
 	)
 	return mapUser(res)
+}
+
+export async function verifyEmailApi(token: string) {
+	const { data } = await apiClient.post<{ message: string }>(
+		'/v1/auth/verify-email',
+		{ token },
+	)
+	return data
+}
+
+export async function resendVerificationApi(email: string) {
+	const { data } = await apiClient.post<{ message: string }>(
+		'/v1/auth/resend-verification',
+		{ email },
+	)
+	return data
 }

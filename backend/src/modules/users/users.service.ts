@@ -1,3 +1,4 @@
+import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	BadRequestException,
@@ -14,7 +15,10 @@ import {
 
 @Injectable()
 export class UsersService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private s3Service: S3Service,
+	) {}
 
 	async findById(id: string) {
 		const user = await this.prisma.user.findUnique({
@@ -24,7 +28,7 @@ export class UsersService {
 		if (!user) throw new NotFoundException('Пользователь не найден')
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safe } = user
-		return safe
+		return this.withSignedAvatar(safe)
 	}
 
 	async findFreelancers(page = 1, limit = 12) {
@@ -44,7 +48,10 @@ export class UsersService {
 		])
 
 		const safe = data.map(({ password, ...u }) => u)
-		return { data: safe, total, page, limit }
+		const signed = await Promise.all(
+			safe.map(user => this.withSignedAvatar(user)),
+		)
+		return { data: signed, total, page, limit }
 	}
 
 	async updateMe(userId: string, dto: UpdateUserDto) {
@@ -65,7 +72,7 @@ export class UsersService {
 		})
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safe } = user
-		return safe
+		return this.withSignedAvatar(safe)
 	}
 
 	async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -85,7 +92,7 @@ export class UsersService {
 		})
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safe } = user
-		return safe
+		return this.withSignedAvatar(safe)
 	}
 
 	async switchRole(userId: string, dto: SwitchRoleDto) {
@@ -125,6 +132,13 @@ export class UsersService {
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safe } = updated
-		return safe
+		return this.withSignedAvatar(safe)
+	}
+
+	private async withSignedAvatar<T extends { avatar?: string | null }>(
+		user: T,
+	): Promise<T> {
+		const avatar = await this.s3Service.signUrl(user.avatar ?? undefined)
+		return { ...user, avatar: avatar ?? null }
 	}
 }

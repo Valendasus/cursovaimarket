@@ -1,3 +1,4 @@
+import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	BadRequestException,
@@ -11,7 +12,10 @@ import { CreateReviewDto } from './dto/review.dto'
 
 @Injectable()
 export class ReviewsService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private s3Service: S3Service,
+	) {}
 
 	async create(authorId: string, dto: CreateReviewDto) {
 		const order = await this.prisma.order.findUnique({
@@ -76,7 +80,7 @@ export class ReviewsService {
 			}),
 		])
 
-		return review
+		return this.withSignedAvatars(review)
 	}
 
 	async findForService(serviceId: string, page = 1, limit = 10) {
@@ -93,7 +97,10 @@ export class ReviewsService {
 			}),
 			this.prisma.review.count({ where: { serviceId } }),
 		])
-		return { data, total, page, limit }
+		const signed = await Promise.all(
+			data.map(item => this.withSignedAvatars(item)),
+		)
+		return { data: signed, total, page, limit }
 	}
 
 	/** Отзывы, написанные пользователем (история студента) */
@@ -119,7 +126,10 @@ export class ReviewsService {
 			}),
 			this.prisma.review.count({ where: { authorId } }),
 		])
-		return { data, total, page, limit }
+		const signed = await Promise.all(
+			data.map(item => this.withSignedAvatars(item)),
+		)
+		return { data: signed, total, page, limit }
 	}
 
 	/** Отзывы, полученные фрилансером (по всем его услугам) */
@@ -130,7 +140,13 @@ export class ReviewsService {
 				where: { service: { freelancerId } },
 				include: {
 					author: { select: { id: true, name: true, avatar: true } },
-					service: { select: { id: true, title: true } },
+					service: {
+						select: {
+							id: true,
+							title: true,
+							freelancer: { select: { id: true, name: true, avatar: true } },
+						},
+					},
 				},
 				skip,
 				take: limit,
@@ -138,6 +154,40 @@ export class ReviewsService {
 			}),
 			this.prisma.review.count({ where: { service: { freelancerId } } }),
 		])
-		return { data, total, page, limit }
+		const signed = await Promise.all(
+			data.map(item => this.withSignedAvatars(item)),
+		)
+		return { data: signed, total, page, limit }
+	}
+
+	private async withSignedAvatars<
+		T extends {
+			author?: { avatar?: string | null }
+			service?: { freelancer?: { avatar?: string | null } }
+		},
+	>(review: T): Promise<T> {
+		const authorAvatar = await this.s3Service.signUrl(
+			review.author?.avatar ?? undefined,
+		)
+		const freelancerAvatar = await this.s3Service.signUrl(
+			review.service?.freelancer?.avatar ?? undefined,
+		)
+		return {
+			...review,
+			author: review.author
+				? { ...review.author, avatar: authorAvatar ?? null }
+				: review.author,
+			service: review.service
+				? {
+						...review.service,
+						freelancer: review.service.freelancer
+							? {
+									...review.service.freelancer,
+									avatar: freelancerAvatar ?? null,
+								}
+							: review.service.freelancer,
+					}
+				: review.service,
+		}
 	}
 }

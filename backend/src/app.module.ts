@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { APP_GUARD } from '@nestjs/core'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
+import { MailModule } from './common/mail/mail.module'
+import { S3Module } from './common/s3/s3.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { ChatModule } from './modules/chat/chat.module'
 import { OrdersModule } from './modules/orders/orders.module'
@@ -20,6 +22,8 @@ import { PrismaModule } from './prisma/prisma.module'
 
 		// Core
 		PrismaModule,
+		S3Module,
+		MailModule,
 
 		// Feature modules
 		AuthModule,

@@ -108,7 +108,7 @@ export default function ServiceCard({
 							<div className='flex items-center gap-1'>
 								<Star className='h-3.5 w-3.5 fill-gold-400 text-gold-400' />
 								<span className='font-semibold text-foreground'>
-									{service.rating}
+									{Number(service.rating.toFixed(1))}
 								</span>
 								<span>({service.reviewsCount})</span>
 							</div>

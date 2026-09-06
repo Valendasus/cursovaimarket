@@ -12,6 +12,11 @@ import {
 export class SendMessageDto {
 	@IsOptional()
 	@IsString()
+	@MaxLength(64)
+	clientMessageId?: string
+
+	@IsOptional()
+	@IsString()
 	@MaxLength(2000, { message: 'Сообщение не может превышать 2000 символов' })
 	content?: string
 
@@ -39,7 +44,7 @@ export class SendMessageDto {
 export class CreateConversationDto {
 	@IsString()
 	@IsNotEmpty({ message: 'partnerId обязателен' })
-	partnerId: string
+	partnerId!: string
 }
 
 export class GetMessagesDto {

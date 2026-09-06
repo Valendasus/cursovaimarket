@@ -1,9 +1,5 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
-import {
-	buildMessagePath,
-	buildPublicUrl,
-	resolveMessageDir,
-} from '@/common/uploads'
+import { S3Service } from '@/common/s3/s3.service'
 import {
 	BadRequestException,
 	Body,
@@ -15,7 +11,6 @@ import {
 	Patch,
 	Post,
 	Query,
-	Req,
 	UploadedFile,
 	UseGuards,
 	UseInterceptors,
@@ -24,9 +19,9 @@ import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
-import type { Request } from 'express'
-import { diskStorage } from 'multer'
+import { memoryStorage } from 'multer'
 import { extname } from 'path'
+import { ChatGateway } from './chat.gateway'
 import { ChatService } from './chat.service'
 import { CreateConversationDto, SendMessageDto } from './dto/chat.dto'
 
@@ -35,7 +30,11 @@ import { CreateConversationDto, SendMessageDto } from './dto/chat.dto'
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
 export class ChatController {
-	constructor(private readonly chatService: ChatService) {}
+	constructor(
+		private readonly chatService: ChatService,
+		private readonly chatGateway: ChatGateway,
+		private readonly s3Service: S3Service,
+	) {}
 
 	/** GET /chat/conversations — list all conversations for the current user */
 	@Get('conversations')
@@ -87,25 +86,47 @@ export class ChatController {
 		@CurrentUser('id') userId: string,
 		@Body() body: SendMessageDto,
 	) {
-		await this.chatService.assertParticipant(conversationId, userId)
+		const conv = await this.chatService.assertParticipant(
+			conversationId,
+			userId,
+		)
 		const hasText = Boolean(body.content?.trim())
 		const hasAttachment = Boolean(body.attachmentUrl)
 		if (!hasText && !hasAttachment) {
 			throw new BadRequestException('Сообщение не может быть пустым')
 		}
-		return this.chatService.saveMessage(
+		const message = await this.chatService.saveMessage(
 			conversationId,
 			userId,
 			body.content,
 			hasAttachment
-				? {
-						url: body.attachmentUrl ?? '',
-						name: body.attachmentName,
-						type: body.attachmentType,
-						size: body.attachmentSize,
-					}
+				? (() => {
+						const normalized = this.s3Service.normalizeRef(
+							body.attachmentUrl ?? '',
+						)
+						if (!normalized || !this.s3Service.isS3Ref(normalized)) {
+							throw new BadRequestException('Недопустимый файл')
+						}
+						return {
+							url: normalized,
+							name: body.attachmentName,
+							type: body.attachmentType,
+							size: body.attachmentSize,
+						}
+					})()
 				: undefined,
 		)
+		const payload = {
+			...message,
+			clientMessageId: body.clientMessageId ?? null,
+		}
+		this.chatGateway.emitNewMessage(
+			conversationId,
+			conv.userAId,
+			conv.userBId,
+			payload,
+		)
+		return payload
 	}
 
 	/** POST /chat/conversations/:id/files — upload attachment */
@@ -114,21 +135,7 @@ export class ChatController {
 	@ApiOperation({ summary: 'Загрузить файл для переписки' })
 	@UseInterceptors(
 		FileInterceptor('file', {
-			storage: diskStorage({
-				destination: (req, file, cb) => {
-					cb(null, resolveMessageDir())
-				},
-				filename: (
-					req: Request,
-					file: Express.Multer.File,
-					cb: (error: Error | null, filename: string) => void,
-				) => {
-					const ext = extname(file.originalname).toLowerCase()
-					const stamp = Date.now().toString(36)
-					const rand = Math.random().toString(36).slice(2, 8)
-					cb(null, `msg-${stamp}-${rand}${ext}`)
-				},
-			}),
+			storage: memoryStorage(),
 			limits: { fileSize: 20 * 1024 * 1024 },
 		}),
 	)
@@ -136,7 +143,6 @@ export class ChatController {
 		@Param('conversationId') conversationId: string,
 		@CurrentUser('id') userId: string,
 		@UploadedFile() file: Express.Multer.File,
-		@Req() req: Request,
 	) {
 		await this.chatService.assertParticipant(conversationId, userId)
 		if (!file) {
@@ -145,9 +151,19 @@ export class ChatController {
 		const originalName = Buffer.from(file.originalname, 'latin1').toString(
 			'utf8',
 		)
-		const path = buildMessagePath(file.filename)
+		const ext = extname(file.originalname).toLowerCase()
+		const stamp = Date.now().toString(36)
+		const rand = Math.random().toString(36).slice(2, 8)
+		const key = `messages/msg-${stamp}-${rand}${ext}`
+		const s3Ref = await this.s3Service.uploadBuffer(
+			key,
+			file.buffer,
+			file.mimetype,
+		)
+		const signedUrl = await this.s3Service.signUrl(s3Ref)
 		return {
-			url: buildPublicUrl(path, req),
+			url: signedUrl,
+			key: s3Ref,
 			name: originalName,
 			type: file.mimetype,
 			size: file.size,

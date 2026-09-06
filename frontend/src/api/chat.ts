@@ -4,6 +4,8 @@ export interface DirectMessage {
 	id: string
 	conversationId: string
 	senderId: string
+	clientMessageId?: string | null
+	localStatus?: 'pending' | 'sent' | 'failed'
 	content?: string | null
 	attachmentUrl?: string | null
 	attachmentName?: string | null
@@ -43,6 +45,7 @@ export interface ChatAttachmentPayload {
 }
 
 export interface SendMessagePayload {
+	clientMessageId?: string
 	content?: string
 	attachmentUrl?: string
 	attachmentName?: string

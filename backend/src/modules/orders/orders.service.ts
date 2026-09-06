@@ -1,3 +1,4 @@
+import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
 	BadRequestException,
@@ -10,7 +11,10 @@ import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto'
 
 @Injectable()
 export class OrdersService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private s3Service: S3Service,
+	) {}
 
 	async create(studentId: string, dto: CreateOrderDto) {
 		const pkg = await this.prisma.servicePackage.findUnique({
@@ -41,7 +45,7 @@ export class OrdersService {
 			},
 		})
 
-		return order
+		return this.withSignedAvatars(order)
 	}
 
 	async findMyOrders(userId: string, role: UserRole) {
@@ -50,7 +54,7 @@ export class OrdersService {
 				? { freelancerId: userId }
 				: { studentId: userId }
 
-		return this.prisma.order.findMany({
+		const orders = await this.prisma.order.findMany({
 			where,
 			include: {
 				service: { select: { id: true, title: true, images: true } },
@@ -61,6 +65,7 @@ export class OrdersService {
 			},
 			orderBy: { createdAt: 'desc' },
 		})
+		return Promise.all(orders.map(order => this.withSignedAvatars(order)))
 	}
 
 	async findOne(id: string, userId: string) {
@@ -80,7 +85,7 @@ export class OrdersService {
 			throw new ForbiddenException('Нет доступа')
 		}
 
-		return order
+		return this.withSignedAvatars(order)
 	}
 
 	async updateStatus(id: string, userId: string, dto: UpdateOrderStatusDto) {
@@ -145,8 +150,8 @@ export class OrdersService {
 			include: {
 				service: { select: { id: true, title: true } },
 				package: true,
-				student: { select: { id: true, name: true } },
-				freelancer: { select: { id: true, name: true } },
+				student: { select: { id: true, name: true, avatar: true } },
+				freelancer: { select: { id: true, name: true, avatar: true } },
 			},
 		})
 
@@ -167,6 +172,29 @@ export class OrdersService {
 			])
 		}
 
-		return updated
+		return this.withSignedAvatars(updated)
+	}
+
+	private async withSignedAvatars<
+		T extends {
+			student?: { avatar?: string | null }
+			freelancer?: { avatar?: string | null }
+		},
+	>(order: T): Promise<T> {
+		const studentAvatar = await this.s3Service.signUrl(
+			order.student?.avatar ?? undefined,
+		)
+		const freelancerAvatar = await this.s3Service.signUrl(
+			order.freelancer?.avatar ?? undefined,
+		)
+		return {
+			...order,
+			student: order.student
+				? { ...order.student, avatar: studentAvatar ?? null }
+				: order.student,
+			freelancer: order.freelancer
+				? { ...order.freelancer, avatar: freelancerAvatar ?? null }
+				: order.freelancer,
+		}
 	}
 }

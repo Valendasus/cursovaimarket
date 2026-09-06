@@ -52,29 +52,66 @@ enum OrderStatus {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String   @unique
-  avatar    String?
-  role      UserRole @default(STUDENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  name            String    @unique
+  avatar          String?
+  role            UserRole  @default(STUDENT)
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Freelancer profile (only if role = FREELANCER)
   profile FreelancerProfile?
 
   // Relations
-  services          Service[]       @relation("FreelancerServices")
-  buyerOrders       Order[]         @relation("BuyerOrders")
-  freelancerOrders  Order[]         @relation("FreelancerOrders")
-  reviews           Review[]        @relation("AuthorReviews")
-  chatMessages      ChatMessage[]
-  conversationsAsA  Conversation[] @relation("ConversationA")
-  conversationsAsB  Conversation[] @relation("ConversationB")
-  directMessages    DirectMessage[]
+  services           Service[]                 @relation("FreelancerServices")
+  buyerOrders        Order[]                   @relation("BuyerOrders")
+  freelancerOrders   Order[]                   @relation("FreelancerOrders")
+  reviews            Review[]                  @relation("AuthorReviews")
+  chatMessages       ChatMessage[]
+  conversationsAsA   Conversation[]            @relation("ConversationA")
+  conversationsAsB   Conversation[]            @relation("ConversationB")
+  directMessages     DirectMessage[]
+  refreshSessions    RefreshSession[]
+  emailVerifications EmailVerificationToken[]
 
   @@map("users")
+}
+
+// ─── Email verification tokens ───────────────────────────────────────────────
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  token     String    @unique // random opaque token sent in the verification link
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime? // set once the token is consumed (single-use)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ─── Refresh sessions (revocable refresh tokens) ─────────────────────────────
+
+model RefreshSession {
+  id        String    @id @default(cuid())
+  jti       String    @unique // matches the `jti` claim of the refresh JWT
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime? // set on rotation / logout; reuse of a revoked token = theft
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_sessions")
 }
 
 model FreelancerProfile {

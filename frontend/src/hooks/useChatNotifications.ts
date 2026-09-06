@@ -1,10 +1,8 @@
+import { acquireChatSocket, releaseChatSocket } from '@/lib/chatSocket'
 import { useAuthStore } from '@/store/authStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { io, Socket } from 'socket.io-client'
-
-const _rawUrl: string = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-const WS_URL = _rawUrl.replace(/\/api\/?$/, '')
+import type { Socket } from 'socket.io-client'
 
 export function useChatNotifications(enabled = true) {
 	const token = useAuthStore(s => s.token)
@@ -14,16 +12,8 @@ export function useChatNotifications(enabled = true) {
 	useEffect(() => {
 		if (!enabled || !token) return
 
-		if (!socketRef.current) {
-			socketRef.current = io(`${WS_URL}/chat`, {
-				auth: { token },
-				transports: ['websocket', 'polling'],
-				reconnectionAttempts: 5,
-				reconnectionDelay: 1500,
-			})
-		}
-
-		const socket = socketRef.current
+		const socket = acquireChatSocket(token)
+		socketRef.current = socket
 		const onNewMessage = () => {
 			queryClient.invalidateQueries({ queryKey: ['unread-counts'] })
 			queryClient.invalidateQueries({ queryKey: ['conversations'] })
@@ -33,13 +23,14 @@ export function useChatNotifications(enabled = true) {
 
 		return () => {
 			socket.off('newMessage', onNewMessage)
+			releaseChatSocket(socket)
 		}
 	}, [enabled, token, queryClient])
 
 	useEffect(() => {
 		return () => {
 			if (socketRef.current) {
-				socketRef.current.disconnect()
+				releaseChatSocket(socketRef.current)
 				socketRef.current = null
 			}
 		}

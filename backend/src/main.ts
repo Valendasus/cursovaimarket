@@ -7,12 +7,16 @@ import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
+import { validateAuthSecrets } from './common/env-validation'
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
 import { resolveUploadsRoot } from './common/uploads'
 
 async function bootstrap() {
 	const app = await NestFactory.create<NestExpressApplication>(AppModule)
 	const config = app.get(ConfigService)
+
+	// Fail-fast: не запускаемся в проде со слабыми/дефолтными JWT-секретами
+	validateAuthSecrets(config)
 
 	// Graceful shutdown
 	app.enableShutdownHooks()

@@ -22,6 +22,7 @@ import {
 } from '@/api/services'
 import { useChatNotifications } from '@/hooks/useChatNotifications'
 import { useChatSocket } from '@/hooks/useChatSocket'
+import { acquireChatSocket, releaseChatSocket } from '@/lib/chatSocket'
 import { formatFileSize, truncate } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import type {
@@ -57,6 +58,7 @@ import {
 	X,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { Socket } from 'socket.io-client'
 
 type TabId = 'orders' | 'services' | 'messages' | 'reviews' | 'settings'
 
@@ -205,7 +207,7 @@ function OrderCard({
 			</div>
 
 			{/* Actions row: status buttons + chat toggle */}
-			<div className='flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/50'>
+			<div className='flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 mt-3 pt-3 border-t border-border/50'>
 				{/* Status buttons */}
 				{!isTerminal && (
 					<>
@@ -214,14 +216,14 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('in_progress')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Взять в работу
 								</button>
 								<button
 									onClick={() => changeStatus('cancelled')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отклонить
 								</button>
@@ -232,14 +234,14 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('in_progress')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Взять в работу
 								</button>
 								<button
 									onClick={() => changeStatus('cancelled')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отклонить
 								</button>
@@ -250,14 +252,14 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('review')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отправить на проверку
 								</button>
 								<button
 									onClick={() => changeStatus('completed')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Завершить работу
 								</button>
@@ -268,14 +270,14 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('in_progress')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Возобновить работу
 								</button>
 								<button
 									onClick={() => changeStatus('cancelled')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отменить
 								</button>
@@ -286,14 +288,14 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('completed')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Принять работу
 								</button>
 								<button
 									onClick={() => changeStatus('revision')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Запросить доработку
 								</button>
@@ -304,7 +306,7 @@ function OrderCard({
 								<button
 									onClick={() => changeStatus('cancelled')}
 									disabled={isPending}
-									className='text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
 									Отменить заказ
 								</button>
@@ -319,7 +321,7 @@ function OrderCard({
 					!showReview && (
 						<button
 							onClick={() => setShowReview(true)}
-							className='text-xs px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 transition-colors font-medium flex items-center gap-1'
+							className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 transition-colors font-medium flex items-center justify-center gap-1'
 						>
 							<Star className='w-3 h-3' />
 							Оставить отзыв
@@ -343,7 +345,7 @@ function OrderCard({
 						partnerId:
 							role === 'student' ? order.freelancerId : order.studentId,
 					}}
-					className='ml-auto text-xs px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors font-medium flex items-center gap-1.5'
+					className='w-full sm:w-auto sm:ml-auto text-xs px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors font-medium flex items-center justify-center gap-1.5'
 				>
 					<MessageCircle className='w-3.5 h-3.5' />
 					Написать
@@ -420,12 +422,26 @@ function isImageAttachment(type?: string | null) {
 function InlineChatContent({
 	conversationId,
 	currentUserId,
+	partnerId,
 }: {
 	conversationId: string
 	currentUserId: string
+	partnerId?: string
 }) {
-	const { messages, status, sendMessage, markRead } = useChatSocket({
+	const {
+		messages,
+		status,
+		sendMessage,
+		retryMessage,
+		markRead,
+		setTyping,
+		isPartnerOnline,
+		isPartnerTyping,
+		sendError,
+		sendBlocked,
+	} = useChatSocket({
 		conversationId,
+		partnerId,
 		enabled: true,
 	})
 	const [input, setInput] = useState('')
@@ -435,6 +451,7 @@ function InlineChatContent({
 	const scrollRef = useRef<HTMLDivElement | null>(null)
 	const inputRef = useRef<HTMLTextAreaElement | null>(null)
 	const fileRef = useRef<HTMLInputElement | null>(null)
+	const typingTimeoutRef = useRef<number | null>(null)
 	const canSend = Boolean(input.trim() || selectedFile)
 	const maxInputHeight = 116
 
@@ -462,10 +479,11 @@ function InlineChatContent({
 
 	const handleSend = async () => {
 		const trimmed = input.trim()
-		if (!canSend || sending) return
+		if (!canSend || sending || sendBlocked) return
 		setSending(true)
 		setInput('')
 		try {
+			setTyping(false)
 			await sendMessage({
 				content: trimmed || undefined,
 				file: selectedFile ?? undefined,
@@ -478,6 +496,36 @@ function InlineChatContent({
 		}
 	}
 
+	useEffect(() => {
+		if (!partnerId) return
+		const hasText = input.trim().length > 0
+		if (!hasText) {
+			setTyping(false)
+			if (typingTimeoutRef.current) {
+				window.clearTimeout(typingTimeoutRef.current)
+				typingTimeoutRef.current = null
+			}
+			return
+		}
+		setTyping(true)
+		if (typingTimeoutRef.current) {
+			window.clearTimeout(typingTimeoutRef.current)
+		}
+		typingTimeoutRef.current = window.setTimeout(() => {
+			setTyping(false)
+			typingTimeoutRef.current = null
+		}, 2000)
+	}, [input, partnerId, setTyping])
+
+	useEffect(() => {
+		return () => {
+			if (typingTimeoutRef.current) {
+				window.clearTimeout(typingTimeoutRef.current)
+				typingTimeoutRef.current = null
+			}
+		}
+	}, [])
+
 	const handleFilePick = (file: File | null) => {
 		if (!file) return
 		if (file.size > MAX_CHAT_FILE_SIZE) {
@@ -489,7 +537,7 @@ function InlineChatContent({
 	}
 
 	return (
-		<>
+		<div className='flex-1 flex flex-col min-h-0'>
 			{/* Status indicator */}
 			{status !== 'connected' && (
 				<div className='flex items-center gap-1.5 px-4 py-1.5 text-xs bg-muted/50 border-b border-border'>
@@ -507,6 +555,17 @@ function InlineChatContent({
 					)}
 				</div>
 			)}
+			{partnerId && (
+				<div className='flex items-center gap-1.5 px-4 py-1 text-[11px] text-muted-foreground border-b border-border bg-muted/30'>
+					{isPartnerTyping
+						? 'набирает сообщение...'
+						: isPartnerOnline === null
+							? 'Личные сообщения'
+							: isPartnerOnline
+								? 'в сети'
+								: 'не в сети'}
+				</div>
+			)}
 
 			{/* Messages */}
 			<div
@@ -514,8 +573,8 @@ function InlineChatContent({
 				className='flex-1 overflow-y-auto p-4 space-y-3 chat-wallpaper'
 			>
 				{messages.length === 0 ? (
-					<div className='flex flex-col items-center justify-center h-full text-muted-foreground'>
-						<MessageCircle className='w-8 h-8 opacity-20 mb-2' />
+					<div className='flex flex-col items-center justify-center h-full text-white'>
+						<MessageCircle className='w-8 h-8 mb-2' />
 						<p className='text-xs'>Сообщений пока нет</p>
 					</div>
 				) : (
@@ -525,6 +584,8 @@ function InlineChatContent({
 							hour: '2-digit',
 							minute: '2-digit',
 						})
+						const isPending = msg.localStatus === 'pending'
+						const isFailed = msg.localStatus === 'failed'
 						return (
 							<div
 								key={msg.id}
@@ -557,7 +618,7 @@ function InlineChatContent({
 													: isMine
 														? 'bg-primary text-primary-foreground'
 														: 'bg-muted text-foreground'
-											}`}
+											} ${isPending ? 'opacity-70' : ''}`}
 										>
 											{isImageAttachment(msg.attachmentType) ? (
 												<img
@@ -590,19 +651,40 @@ function InlineChatContent({
 												isMine
 													? 'bg-primary text-primary-foreground rounded-br-sm'
 													: 'bg-muted text-foreground rounded-bl-sm'
-											}`}
+											} ${isPending ? 'opacity-70' : ''}`}
 										>
 											{msg.content}
 										</div>
 									)}
-									<span className='text-[10px] text-white px-1'>
+									<span
+										className={`text-[10px] px-1 ${
+											isPending || isFailed ? 'text-white/60' : 'text-white'
+										}`}
+									>
 										{time}
 										{isMine && (
 											<span className='ml-1 text-white'>
-												{msg.isRead ? '✓✓' : '✓'}
+												{isPending
+													? '...'
+													: isFailed
+														? '!'
+														: msg.isRead
+															? '✓✓'
+															: '✓'}
 											</span>
 										)}
 									</span>
+									{isMine && isFailed && (
+										<button
+											onClick={() =>
+												msg.clientMessageId && retryMessage(msg.clientMessageId)
+											}
+											className='text-[10px] text-destructive hover:underline'
+											type='button'
+										>
+											Повторить
+										</button>
+									)}
 								</div>
 							</div>
 						)
@@ -611,7 +693,7 @@ function InlineChatContent({
 			</div>
 
 			{/* Input */}
-			<div className='shrink-0 border-t border-border p-3 flex items-end gap-2'>
+			<div className='shrink-0 border-t border-border p-3 flex items-end gap-2 sticky bottom-0 bg-background/90 backdrop-blur sm:static'>
 				<input
 					ref={fileRef}
 					type='file'
@@ -646,7 +728,7 @@ function InlineChatContent({
 				/>
 				<button
 					onClick={() => void handleSend()}
-					disabled={!canSend || sending}
+					disabled={!canSend || sending || sendBlocked}
 					className='shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-all active:scale-95'
 				>
 					{sending ? (
@@ -656,7 +738,7 @@ function InlineChatContent({
 					)}
 				</button>
 			</div>
-			{(selectedFile || fileError) && (
+			{(selectedFile || fileError || sendError) && (
 				<div className='px-3 pb-3 flex items-center gap-2 text-xs text-muted-foreground'>
 					{selectedFile && (
 						<div className='flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1'>
@@ -677,9 +759,10 @@ function InlineChatContent({
 						</div>
 					)}
 					{fileError && <span className='text-destructive'>{fileError}</span>}
+					{sendError && <span className='text-destructive'>{sendError}</span>}
 				</div>
 			)}
-		</>
+		</div>
 	)
 }
 
@@ -692,6 +775,10 @@ function MessagesTab({
 }) {
 	useChatNotifications(true)
 	const queryClient = useQueryClient()
+	const token = useAuthStore(s => s.token)
+	const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({})
+	const presenceSocketRef = useRef<Socket | null>(null)
+	const partnerIdsRef = useRef<string[]>([])
 
 	const { data: conversations = [], isLoading } = useQuery({
 		queryKey: ['conversations'],
@@ -710,6 +797,55 @@ function MessagesTab({
 		refetchInterval: 15000,
 	})
 
+	useEffect(() => {
+		partnerIdsRef.current = conversations
+			.map(conv => conv.partner.id)
+			.filter(Boolean)
+	}, [conversations])
+
+	useEffect(() => {
+		if (!token) return
+		const socket = acquireChatSocket(token)
+		presenceSocketRef.current = socket
+		if (!socket) return
+
+		const emitSnapshotRequest = () => {
+			const ids = partnerIdsRef.current
+			if (ids.length) {
+				socket.emit('subscribePresence', { userIds: ids })
+			}
+		}
+
+		const onPresenceUpdate = (payload: { userId: string; online: boolean }) => {
+			setPresenceMap(prev => ({ ...prev, [payload.userId]: payload.online }))
+		}
+
+		socket.on('connect', emitSnapshotRequest)
+		socket.on('presenceUpdate', onPresenceUpdate)
+		socket.on('presenceSnapshot', onPresenceUpdate)
+
+		if (socket.connected) emitSnapshotRequest()
+
+		return () => {
+			socket.off('connect', emitSnapshotRequest)
+			socket.off('presenceUpdate', onPresenceUpdate)
+			socket.off('presenceSnapshot', onPresenceUpdate)
+			releaseChatSocket(socket)
+			if (presenceSocketRef.current === socket) {
+				presenceSocketRef.current = null
+			}
+		}
+	}, [token])
+
+	useEffect(() => {
+		const socket = presenceSocketRef.current
+		if (!socket?.connected) return
+		const ids = partnerIdsRef.current
+		if (ids.length) {
+			socket.emit('subscribePresence', { userIds: ids })
+		}
+	}, [conversations])
+
 	const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
 	const hasSelection = Boolean(selectedConvId)
 	const lastPartnerIdRef = useRef<string | undefined>(undefined)
@@ -727,19 +863,24 @@ function MessagesTab({
 	}, [initialPartnerId, queryClient])
 
 	const selectedConv = conversations.find(c => c.id === selectedConvId)
+	const selectedPartnerOnline = selectedConv?.partner.id
+		? Boolean(presenceMap[selectedConv.partner.id])
+		: false
 
 	return (
-		<div className='glass-card rounded-2xl overflow-hidden'>
+		<div className='glass-card rounded-2xl overflow-hidden min-w-0'>
 			<div
-				className={`flex flex-col sm:flex-row ${
-					hasSelection ? 'h-[70vh] sm:h-[520px]' : 'h-auto sm:h-[520px]'
+				className={`flex flex-col sm:flex-row min-w-0 overflow-x-hidden ${
+					hasSelection
+						? 'h-[92vh] sm:h-[92vh] lg:h-[92vh]'
+						: 'h-auto sm:h-[92vh] lg:h-[92vh]'
 				}`}
 			>
 				{/* Sidebar — conversations list */}
 				<div
-					className={`w-full sm:w-64 shrink-0 border-r border-border flex flex-col ${
+					className={`w-full sm:w-64 shrink-0 border-border flex flex-col min-w-0 overflow-x-hidden ${
 						hasSelection ? 'hidden sm:flex' : 'flex'
-					}`}
+					} sm:border-r`}
 				>
 					<div className='flex items-center gap-2 px-4 py-3 border-b border-border'>
 						<MessageSquare className='w-4 h-4 text-primary' />
@@ -748,7 +889,7 @@ function MessagesTab({
 						</span>
 					</div>
 
-					<div className='flex-1 overflow-y-auto'>
+					<div className='flex-1 overflow-y-auto overflow-x-hidden'>
 						{isLoading ? (
 							<div className='space-y-1 p-2'>
 								{[0, 1, 2].map(i => (
@@ -764,21 +905,22 @@ function MessagesTab({
 								<p className='text-xs text-center'>Переписок пока нет</p>
 							</div>
 						) : (
-							<div className='p-2 space-y-0.5'>
+							<div className='p-2 space-y-0.5 min-w-0'>
 								{conversations.map(conv => {
 									const unread = unreadCounts[conv.id] ?? 0
 									const isSelected = selectedConvId === conv.id
+									const isOnline = Boolean(presenceMap[conv.partner.id])
 									return (
 										<button
 											key={conv.id}
 											onClick={() => setSelectedConvId(conv.id)}
-											className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+											className={`w-full min-w-0 text-left px-3 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
 												isSelected
 													? 'bg-primary/10 text-primary'
 													: 'text-foreground hover:bg-muted/50'
 											}`}
 										>
-											<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
+											<div className='relative w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
 												{conv.partner.avatar ? (
 													<img
 														src={conv.partner.avatar}
@@ -787,6 +929,9 @@ function MessagesTab({
 													/>
 												) : (
 													conv.partner.name.charAt(0).toUpperCase()
+												)}
+												{isOnline && (
+													<span className='absolute bottom-[3px] right-[3px] w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-background' />
 												)}
 											</div>
 											<div className='flex-1 min-w-0'>
@@ -823,14 +968,14 @@ function MessagesTab({
 
 				{/* Chat area */}
 				<div
-					className={`flex-1 flex flex-col min-w-0 ${
+					className={`flex-1 flex flex-col min-w-0 min-h-0 ${
 						hasSelection ? 'flex' : 'hidden sm:flex'
 					}`}
 				>
 					{selectedConvId ? (
-						<>
+						<div className='flex-1 flex flex-col min-h-0'>
 							{/* Chat header */}
-							<div className='flex items-center gap-3 px-4 py-3 border-b border-border shrink-0'>
+							<div className='flex items-center gap-3 px-4 py-3 border-b border-border shrink-0 sticky top-0 z-10 bg-background/90 backdrop-blur sm:static'>
 								<button
 									type='button'
 									onClick={() => setSelectedConvId(null)}
@@ -839,7 +984,7 @@ function MessagesTab({
 								>
 									<ArrowLeft className='w-4 h-4' />
 								</button>
-								<div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden shrink-0'>
+								<div className='relative w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden shrink-0'>
 									{selectedConv?.partner.avatar ? (
 										<img
 											src={selectedConv.partner.avatar}
@@ -848,6 +993,9 @@ function MessagesTab({
 										/>
 									) : (
 										(selectedConv?.partner.name ?? '?').charAt(0).toUpperCase()
+									)}
+									{selectedPartnerOnline && (
+										<span className='absolute bottom-[3px] right-[3px] w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-background' />
 									)}
 								</div>
 								<div>
@@ -863,8 +1011,9 @@ function MessagesTab({
 							<InlineChatContent
 								conversationId={selectedConvId}
 								currentUserId={currentUserId}
+								partnerId={selectedConv?.partner.id}
 							/>
-						</>
+						</div>
 					) : (
 						<div className='flex-1 flex flex-col items-center justify-center text-muted-foreground'>
 							<MessageCircle className='w-12 h-12 opacity-20 mb-3' />
@@ -2277,7 +2426,11 @@ export default function DashboardPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 16 }}
 					animate={{ opacity: 1, y: 0 }}
-					className='grid lg:grid-cols-[280px_1fr] gap-6'
+					className={`grid gap-6 ${
+						activeTab === 'messages'
+							? 'grid-cols-1'
+							: 'lg:grid-cols-[280px_1fr]'
+					}`}
 				>
 					{/* Sidebar */}
 					<aside className='space-y-4'>
@@ -2341,7 +2494,7 @@ export default function DashboardPage() {
 					</aside>
 
 					{/* Main */}
-					<main className='space-y-6'>
+					<main className='space-y-6 min-w-0 overflow-x-hidden'>
 						<AnimatePresence mode='wait'>
 							{activeTab === 'orders' && (
 								<motion.div

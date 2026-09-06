@@ -17,6 +17,7 @@ const FreelancerPage = lazy(() => import('@/pages/FreelancerPage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const VerifyEmailPage = lazy(() => import('@/pages/VerifyEmailPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 const wrap = (Component: React.ComponentType) => () => (
@@ -65,6 +66,14 @@ const registerRoute = createRoute({
 	path: '/register',
 	component: wrap(RegisterPage),
 })
+const verifyEmailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/verify-email',
+	validateSearch: (s: Record<string, unknown>): { token?: string } => ({
+		token: typeof s.token === 'string' ? s.token : undefined,
+	}),
+	component: wrap(VerifyEmailPage),
+})
 const dashboardRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/dashboard',
@@ -98,6 +107,7 @@ const routeTree = rootRoute.addChildren([
 	freelancerRoute,
 	loginRoute,
 	registerRoute,
+	verifyEmailRoute,
 	dashboardRoute,
 	notFoundRoute,
 ])

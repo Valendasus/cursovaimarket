@@ -1,4 +1,5 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'
 import {
 	Body,
 	Controller,
@@ -21,9 +22,9 @@ export class ReviewsController {
 	constructor(private readonly reviewsService: ReviewsService) {}
 
 	@Post()
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), EmailVerifiedGuard)
 	@ApiBearerAuth()
-	@ApiOperation({ summary: 'Оставить отзыв' })
+	@ApiOperation({ summary: 'Оставить отзыв (email подтверждён)' })
 	create(@CurrentUser('id') userId: string, @Body() dto: CreateReviewDto) {
 		return this.reviewsService.create(userId, dto)
 	}

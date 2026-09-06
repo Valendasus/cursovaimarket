@@ -20,7 +20,13 @@ export default function FreelancerPage() {
 	const { freelancerId } = useParams({ from: '/freelancers/$freelancerId' })
 	const { user } = useAuthStore()
 
-	const { data: freelancer, isLoading: loadingFreelancer } = useQuery({
+	const {
+		data: freelancer,
+		isLoading: loadingFreelancer,
+		isError: freelancerError,
+		isFetching: freelancerFetching,
+		refetch: refetchFreelancer,
+	} = useQuery({
 		queryKey: ['freelancer', freelancerId],
 		queryFn: () => getFreelancerById(freelancerId),
 		enabled: !!freelancerId,
@@ -43,6 +49,25 @@ export default function FreelancerPage() {
 							className='h-56 bg-muted/50 rounded-2xl animate-pulse'
 						/>
 					))}
+				</div>
+			</div>
+		)
+	}
+
+	if (freelancerError) {
+		return (
+			<div className='min-h-screen flex items-center justify-center'>
+				<div className='text-center'>
+					<p className='text-muted-foreground mb-4'>
+						Не удалось загрузить профиль
+					</p>
+					<button
+						onClick={() => void refetchFreelancer()}
+						disabled={freelancerFetching}
+						className='inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors'
+					>
+						{freelancerFetching ? 'Обновляем...' : 'Попробовать снова'}
+					</button>
 				</div>
 			</div>
 		)
