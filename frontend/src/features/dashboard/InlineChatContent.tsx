@@ -1,5 +1,7 @@
 import { useChatSocket } from '@/hooks/useChatSocket'
 import { formatFileSize, truncate } from '@/lib/utils'
+import { format, isSameYear, isToday, isYesterday } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import {
 	FileText,
 	Loader2,
@@ -12,6 +14,21 @@ import {
 import { useEffect, useRef, useState } from 'react'
 
 const MAX_CHAT_FILE_SIZE = 20 * 1024 * 1024
+
+/** Ключ дня (ГГГГ-ММ-ДД в локальном времени) — для сравнения соседних сообщений */
+function dayKey(iso: string): string {
+	const d = new Date(iso)
+	return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+/** Подпись разделителя: «Сегодня», «Вчера», «5 сентября», «5 сентября 2024» */
+function formatDaySeparator(iso: string): string {
+	const d = new Date(iso)
+	if (isToday(d)) return 'Сегодня'
+	if (isYesterday(d)) return 'Вчера'
+	const pattern = isSameYear(d, new Date()) ? 'd MMMM' : 'd MMMM yyyy'
+	return format(d, pattern, { locale: ru })
+}
 
 function isImageAttachment(type?: string | null) {
 	return Boolean(type && type.startsWith('image/'))
@@ -177,7 +194,7 @@ export function InlineChatContent({
 						<p className='text-xs'>Сообщений пока нет</p>
 					</div>
 				) : (
-					messages.map(msg => {
+					messages.map((msg, i) => {
 						const isMine = msg.senderId === currentUserId
 						const time = new Date(msg.createdAt).toLocaleTimeString('ru-RU', {
 							hour: '2-digit',
@@ -185,11 +202,22 @@ export function InlineChatContent({
 						})
 						const isPending = msg.localStatus === 'pending'
 						const isFailed = msg.localStatus === 'failed'
+						// Разделитель перед первым сообщением дня
+						const prev = messages[i - 1]
+						const showDaySeparator =
+							!prev || dayKey(prev.createdAt) !== dayKey(msg.createdAt)
 						return (
-							<div
-								key={msg.id}
-								className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
-							>
+							<div key={msg.id}>
+								{showDaySeparator && (
+									<div className='flex justify-center my-3'>
+										<span className='text-[11px] text-white/90 bg-black/25 backdrop-blur-sm px-3 py-1 rounded-full'>
+											{formatDaySeparator(msg.createdAt)}
+										</span>
+									</div>
+								)}
+								<div
+									className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
+								>
 								{!isMine && (
 									<div className='w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 overflow-hidden'>
 										{msg.sender.avatar ? (
@@ -284,6 +312,7 @@ export function InlineChatContent({
 											Повторить
 										</button>
 									)}
+								</div>
 								</div>
 							</div>
 						)
