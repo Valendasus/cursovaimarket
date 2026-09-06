@@ -25,12 +25,28 @@ import {
 	Zap,
 } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { CountUp } from '@/features/home/CountUp'
 import { useInView } from 'react-intersection-observer'
 
 // ─── Animation helpers ─────────────────────────────────────────────────────────
 const fadeUp = {
 	hidden: { opacity: 0, y: 32 },
 	visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+}
+
+/** Карточки шагов выезжают по очереди: вся четвёрка укладывается в ~0.6 с */
+const stepsGrid = {
+	hidden: {},
+	visible: { transition: { staggerChildren: 0.08 } },
+}
+
+const stepItem = {
+	hidden: { opacity: 0, y: 20 },
+	visible: {
+		opacity: 1,
+		y: 0,
+		transition: { duration: 0.4, ease: 'easeOut' as const },
+	},
 }
 
 function Section({
@@ -87,12 +103,12 @@ const studentSteps = [
 	{
 		icon: CreditCard,
 		num: '03',
-		title: 'Оплатите заказ',
+		title: 'Дождитесь подтверждения',
 		description:
-			'Средства хранятся на безопасном счёте до принятия работы. Исполнитель получает оплату только после вашего одобрения.',
+			'У исполнителя есть 24 часа, чтобы принять заказ. Как только он подтвердит — проходит оплата и он берётся за работу. Не ответил вовремя — заказ отменяется, деньги не списываются.',
 		color: 'from-emerald-500/20 to-emerald-600/5',
 		iconColor: 'text-emerald-500',
-		badge: 'Защита платежей',
+		badge: '24 часа на ответ',
 	},
 	{
 		icon: FileCheck,
@@ -142,18 +158,18 @@ const freelancerSteps = [
 		num: '04',
 		title: 'Зарабатывайте и растите',
 		description:
-			'Получайте оплату сразу после принятия работы. Накапливайте отзывы, повышайте рейтинг и привлекайте больше клиентов.',
+			'Деньги приходят сразу после того, как вы подтвердили заказ, — ждать сдачи работы не нужно. Накапливайте отзывы, повышайте рейтинг и привлекайте больше клиентов.',
 		color: 'from-lime-500/20 to-lime-600/5',
 		iconColor: 'text-lime-600',
-		badge: 'Выплата в день',
+		badge: 'Оплата вперёд',
 	},
 ]
 
 const platformFeatures = [
 	{
 		icon: Shield,
-		title: 'Защита платежей',
-		desc: 'Деньги хранятся в безопасном резерве до принятия работы',
+		title: 'Оплата после подтверждения',
+		desc: 'Деньги списываются, только когда исполнитель принял заказ в работу',
 	},
 	{
 		icon: RotateCcw,
@@ -185,6 +201,16 @@ const platformFeatures = [
 export default function HomePage() {
 	const heroRef = useRef<HTMLDivElement>(null)
 	const [howTab, setHowTab] = useState<'student' | 'freelancer'>('student')
+	// triggerOnce: показали один раз — дальше inView остаётся true, и смена
+	// вкладки перезапускает стаггер без ожидания пересчёта видимости
+	const { ref: stepsRef, inView: stepsInView } = useInView({
+		triggerOnce: true,
+		threshold: 0.15,
+	})
+	const { ref: statsRef, inView: statsInView } = useInView({
+		triggerOnce: true,
+		threshold: 0.3,
+	})
 	const { scrollYProgress } = useScroll({
 		target: heroRef,
 		offset: ['start start', 'end start'],
@@ -274,7 +300,7 @@ export default function HomePage() {
 						{/* Trust icons */}
 						<div className='flex flex-wrap items-center gap-6 mt-10 text-sm text-muted-foreground'>
 							{[
-								{ icon: Shield, text: 'Защита платежей' },
+								{ icon: Shield, text: 'Оплата после подтверждения' },
 								{ icon: CheckCircle, text: 'Проверенные авторы' },
 								{ icon: Star, text: 'Гарантия качества' },
 							].map(({ icon: Icon, text }) => (
@@ -291,20 +317,23 @@ export default function HomePage() {
 			{/* ── Stats ─────────────────────────────────────────────────────────────── */}
 			<section className='border-y border-border bg-muted/30 py-12'>
 				<div className='container-custom'>
-					<div className='grid grid-cols-2 lg:grid-cols-4 gap-6'>
+					<div ref={statsRef} className='grid grid-cols-2 lg:grid-cols-4 gap-6'>
 						{stats.map(({ icon: Icon, value, label }, i) => (
 							<motion.div
 								key={label}
 								initial={{ opacity: 0, y: 20 }}
-								whileInView={{ opacity: 1, y: 0 }}
-								viewport={{ once: true }}
-								transition={{ delay: i * 0.1 }}
-								className='text-center'
+								animate={
+									statsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }
+								}
+								transition={{ delay: i * 0.1, duration: 0.4 }}
+								className='group text-center'
 							>
-								<div className='w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-3'>
+								<div className='w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300'>
 									<Icon className='w-5 h-5 text-primary' />
 								</div>
-								<p className='text-2xl font-bold text-foreground'>{value}</p>
+								<p className='text-2xl font-bold text-foreground tabular-nums'>
+									<CountUp value={value} active={statsInView} />
+								</p>
 								<p className='text-sm text-muted-foreground'>{label}</p>
 							</motion.div>
 						))}
@@ -494,19 +523,27 @@ export default function HomePage() {
 
 					{/* Steps */}
 
+					{/*
+					 * Стагger живёт на контейнере, а появление привязано к useInView,
+					 * а не к whileInView. Так при переключении вкладки (меняется key,
+					 * блок перемонтируется) карточки сразу начинают анимацию, вместо
+					 * того чтобы мигнуть невидимыми в ожидании, пока whileInView
+					 * заметит, что они и так на экране.
+					 */}
 					<motion.div
 						key={howTab}
+						ref={stepsRef}
+						variants={stepsGrid}
+						initial='hidden'
+						animate={stepsInView ? 'visible' : 'hidden'}
 						className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
 					>
 						{(howTab === 'student' ? studentSteps : freelancerSteps).map(
 							(step, i) => (
 								<motion.div
 									key={step.num}
-									initial={{ opacity: 0, y: 24 }}
-									whileInView={{ opacity: 1, y: 0 }}
-									viewport={{ once: true }}
-									transition={{ delay: i * 1 }}
-									className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg transition-all duration-300'
+									variants={stepItem}
+									className='relative group rounded-2xl border border-border bg-background p-6 hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300'
 								>
 									{/* connector line */}
 									{i <
