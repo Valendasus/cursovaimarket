@@ -49,6 +49,30 @@ const stepItem = {
 	},
 }
 
+/** Ниточка между карточками прочерчивается уже после того, как карточка встала */
+const connectorLine = {
+	hidden: { scaleX: 0 },
+	visible: {
+		scaleX: 1,
+		transition: { duration: 0.35, delay: 0.25, ease: 'easeOut' as const },
+	},
+}
+
+/** Плитки категорий выкладываются волной */
+const categoryGrid = {
+	hidden: {},
+	visible: { transition: { staggerChildren: 0.04 } },
+}
+
+const categoryItem = {
+	hidden: { opacity: 0, scale: 0.92 },
+	visible: {
+		opacity: 1,
+		scale: 1,
+		transition: { duration: 0.3, ease: 'easeOut' as const },
+	},
+}
+
 function Section({
 	children,
 	className = '',
@@ -201,12 +225,22 @@ const platformFeatures = [
 export default function HomePage() {
 	const heroRef = useRef<HTMLDivElement>(null)
 	const [howTab, setHowTab] = useState<'student' | 'freelancer'>('student')
-	// triggerOnce: показали один раз — дальше inView остаётся true, и смена
-	// вкладки перезапускает стаггер без ожидания пересчёта видимости
+	/*
+	 * rootMargin 200px — запускаем каскад ЗАРАНЕЕ, пока блок ещё за экраном.
+	 * Если ждать появления в кадре, при быстром скролле IntersectionObserver
+	 * успевает отработать уже после того, как блок пролетел мимо: анимация
+	 * проигрывается вслепую, а пользователь видит пустое место и находит
+	 * карточки, только проскроллив обратно. С запасом такого не бывает —
+	 * к моменту, когда блок доезжает до экрана, он уже проявлен.
+	 */
 	const { ref: stepsRef, inView: stepsInView } = useInView({
 		triggerOnce: true,
-		threshold: 0.15,
+		threshold: 0,
+		rootMargin: '200px 0px 200px 0px',
 	})
+	// после первого показа вкладки переключаются мгновенно, без повторного
+	// каскада и без кадра, на котором карточки невидимы
+	const [stepsRevealed, setStepsRevealed] = useState(false)
 	const { ref: statsRef, inView: statsInView } = useInView({
 		triggerOnce: true,
 		threshold: 0.3,
@@ -245,10 +279,28 @@ export default function HomePage() {
 				ref={heroRef}
 				className='relative min-h-[92vh] flex items-center overflow-hidden bg-gradient-to-br from-background via-background to-primary/5'
 			>
-				{/* Decorative blobs */}
+				{/* Decorative blobs — медленно дышат, чтобы фон не выглядел картинкой.
+				    Анимируем только transform: композитится на GPU, ререндеров нет. */}
 				<div className='absolute inset-0 pointer-events-none'>
-					<div className='absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-primary/10 blur-3xl' />
-					<div className='absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] rounded-full bg-brand-gold/10 blur-3xl' />
+					<motion.div
+						animate={{ x: [0, 40, 0], y: [0, -30, 0], scale: [1, 1.08, 1] }}
+						transition={{
+							duration: 18,
+							repeat: Infinity,
+							ease: 'easeInOut',
+						}}
+						className='absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-primary/10 blur-3xl'
+					/>
+					<motion.div
+						animate={{ x: [0, -30, 0], y: [0, 25, 0], scale: [1, 1.12, 1] }}
+						transition={{
+							duration: 22,
+							repeat: Infinity,
+							ease: 'easeInOut',
+							delay: 1.5,
+						}}
+						className='absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] rounded-full bg-brand-gold/10 blur-3xl'
+					/>
 				</div>
 
 				<motion.div
@@ -350,21 +402,34 @@ export default function HomePage() {
 						</h2>
 						<p className='text-muted-foreground'>Выберите нужное направление</p>
 					</div>
-					<div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3'>
+					<motion.div
+						variants={categoryGrid}
+						initial='hidden'
+						whileInView='visible'
+						viewport={{ once: true, amount: 0.2 }}
+						className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3'
+					>
 						{(Object.entries(SERVICE_CATEGORIES) as [string, string][])
 							.slice(0, 10)
 							.map(([value, label]) => (
-								<Link
+								<motion.div
 									key={value}
-									to='/services'
-									className='flex flex-col items-center gap-2 p-4 rounded-2xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all group text-center'
+									variants={categoryItem}
+									whileHover={{ scale: 1.04, y: -2 }}
+									whileTap={{ scale: 0.98 }}
+									transition={{ type: 'spring', stiffness: 400, damping: 22 }}
 								>
-									<span className='text-sm font-medium text-foreground group-hover:text-primary transition-colors leading-tight'>
-										{label}
-									</span>
-								</Link>
+									<Link
+										to='/services'
+										className='flex flex-col items-center gap-2 p-4 rounded-2xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors group text-center'
+									>
+										<span className='text-sm font-medium text-foreground group-hover:text-primary transition-colors leading-tight'>
+											{label}
+										</span>
+									</Link>
+								</motion.div>
 							))}
-					</div>
+					</motion.div>
 				</Section>
 			</section>
 
@@ -534,8 +599,9 @@ export default function HomePage() {
 						key={howTab}
 						ref={stepsRef}
 						variants={stepsGrid}
-						initial='hidden'
+						initial={stepsRevealed ? false : 'hidden'}
 						animate={stepsInView ? 'visible' : 'hidden'}
+						onAnimationComplete={() => setStepsRevealed(true)}
 						className='grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-16'
 					>
 						{(howTab === 'student' ? studentSteps : freelancerSteps).map(
@@ -550,7 +616,10 @@ export default function HomePage() {
 										(howTab === 'student' ? studentSteps : freelancerSteps)
 											.length -
 											1 && (
-										<div className='hidden xl:block absolute top-10 -right-4 w-8 h-px bg-border z-10' />
+										<motion.div
+											variants={connectorLine}
+											className='hidden xl:block absolute top-10 -right-4 w-8 h-px origin-left bg-border z-10'
+										/>
 									)}
 
 									<div
