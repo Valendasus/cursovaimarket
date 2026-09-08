@@ -86,6 +86,7 @@ export interface Service {
 
 export type OrderStatus =
 	| 'pending'
+	| 'awaiting_payment'
 	| 'accepted'
 	| 'in_progress'
 	| 'review'

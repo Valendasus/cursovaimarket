@@ -1,6 +1,6 @@
 import { extractApiError } from '@/api/client'
 import type { Order } from '@/api/orders'
-import { confirmOrder, updateOrderStatus } from '@/api/orders'
+import { confirmOrder, payOrder, updateOrderStatus } from '@/api/orders'
 import { createReview } from '@/api/reviews'
 import { truncate } from '@/lib/utils'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,7 +10,8 @@ import { useState } from 'react'
 import { ConfirmCountdown } from './ConfirmCountdown'
 
 const STATUS_LABEL: Record<string, string> = {
-	pending: 'Ожидает',
+	pending: 'Ожидает подтверждения',
+	awaiting_payment: 'Ожидает оплаты',
 	accepted: 'Принят',
 	in_progress: 'В работе',
 	review: 'На проверке',
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
 	pending: 'bg-yellow-500/10 text-yellow-600',
+	awaiting_payment: 'bg-amber-500/10 text-amber-600',
 	accepted: 'bg-sky-500/10 text-sky-600',
 	in_progress: 'bg-blue-500/10 text-blue-600',
 	review: 'bg-purple-500/10 text-purple-600',
@@ -85,11 +87,7 @@ export function OrderCard({
 		},
 	})
 
-	/**
-	 * Подтверждение проводит оплату. Отказ в оплате приходит успешным ответом
-	 * с отменённым заказом — бэкенд намеренно не бросает исключение, чтобы
-	 * инвалидация сработала и карточка обновилась.
-	 */
+	// Исполнитель подтверждает заказ (без списания) → «ожидает оплаты»
 	const { mutate: confirm, isPending: confirming } = useMutation({
 		mutationFn: () => confirmOrder(order.id),
 		onSuccess: () => {
@@ -98,6 +96,22 @@ export function OrderCard({
 		},
 		onError: (err: unknown) => {
 			setStatusError(extractApiError(err, 'Не удалось подтвердить заказ'))
+		},
+	})
+
+	/**
+	 * Заказчик оплачивает подтверждённый заказ → списание → заказ в работе.
+	 * Отказ в оплате приходит успешным ответом (заказ остаётся «ожидает
+	 * оплаты» с payment.failureReason) — можно повторить.
+	 */
+	const { mutate: pay, isPending: paying } = useMutation({
+		mutationFn: () => payOrder(order.id),
+		onSuccess: () => {
+			setStatusError('')
+			queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+		},
+		onError: (err: unknown) => {
+			setStatusError(extractApiError(err, 'Не удалось оплатить заказ'))
 		},
 	})
 
@@ -207,9 +221,8 @@ export function OrderCard({
 				{/* Status buttons */}
 				{!isTerminal && (
 					<>
-						{/* Из PENDING вперёд только через подтверждение — оно же
-						    проводит оплату. Прямого «Взять в работу» здесь нет:
-						    бэкенд такой переход отклонит. */}
+						{/* Исполнитель подтверждает входящий заказ (без списания) либо
+						    отклоняет. Списание произойдёт позже, когда заказчик оплатит. */}
 						{role === 'freelancer' && order.status === 'pending' && (
 							<>
 								<button
@@ -229,23 +242,45 @@ export function OrderCard({
 								</button>
 							</>
 						)}
-						{role === 'freelancer' && order.status === 'accepted' && (
+						{/* Исполнитель подтвердил — ждём, пока заказчик оплатит */}
+						{role === 'freelancer' &&
+							order.status === 'awaiting_payment' && (
+								<span className='text-xs text-muted-foreground py-1.5'>
+									Ожидает оплаты заказчиком
+								</span>
+							)}
+						{/* Заказчик оплачивает подтверждённый заказ */}
+						{role === 'student' && order.status === 'awaiting_payment' && (
 							<>
 								<button
-									onClick={() => changeStatus('in_progress')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+									onClick={() => pay()}
+									disabled={paying}
+									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium flex items-center justify-center gap-1'
 								>
-									Взять в работу
+									<Wallet className='w-3 h-3' />
+									{paying
+										? 'Оплачиваем...'
+										: `Оплатить ${formatRub(order.totalPrice)}`}
 								</button>
 								<button
 									onClick={() => changeStatus('cancelled')}
-									disabled={isPending}
+									disabled={isPending || paying}
 									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
 								>
-									Отклонить
+									Отменить заказ
 								</button>
 							</>
+						)}
+						{/* Legacy: старые заказы в статусе «Принят» (оплачены до перехода
+						    на раздельную оплату) — просто берём в работу */}
+						{role === 'freelancer' && order.status === 'accepted' && (
+							<button
+								onClick={() => changeStatus('in_progress')}
+								disabled={isPending}
+								className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Взять в работу
+							</button>
 						)}
 						{role === 'freelancer' && order.status === 'in_progress' && (
 							<button
@@ -257,22 +292,13 @@ export function OrderCard({
 							</button>
 						)}
 						{role === 'freelancer' && order.status === 'revision' && (
-							<>
-								<button
-									onClick={() => changeStatus('in_progress')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
-								>
-									Возобновить работу
-								</button>
-								<button
-									onClick={() => changeStatus('cancelled')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
-								>
-									Отменить
-								</button>
-							</>
+							<button
+								onClick={() => changeStatus('in_progress')}
+								disabled={isPending}
+								className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Возобновить работу
+							</button>
 						)}
 						{role === 'student' && order.status === 'review' && (
 							<>
@@ -292,16 +318,17 @@ export function OrderCard({
 								</button>
 							</>
 						)}
-						{role === 'student' &&
-							(order.status === 'pending' || order.status === 'accepted') && (
-								<button
-									onClick={() => changeStatus('cancelled')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
-								>
-									Отменить заказ
-								</button>
-							)}
+						{/* Отмена заказчиком — только пока не оплачен (в pending;
+						    в awaiting_payment кнопка отмены уже показана рядом с «Оплатить») */}
+						{role === 'student' && order.status === 'pending' && (
+							<button
+								onClick={() => changeStatus('cancelled')}
+								disabled={isPending}
+								className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Отменить заказ
+							</button>
+						)}
 					</>
 				)}
 

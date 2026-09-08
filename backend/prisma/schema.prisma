@@ -40,8 +40,9 @@ enum ServiceLevel {
 }
 
 enum OrderStatus {
-  PENDING
-  ACCEPTED
+  PENDING // создан, ждёт подтверждения исполнителя
+  AWAITING_PAYMENT // исполнитель подтвердил, ждём оплаты заказчиком
+  ACCEPTED // @deprecated: старый статус «подтверждён+оплачен»; новый флоу его не создаёт
   IN_PROGRESS
   REVIEW
   REVISION

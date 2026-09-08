@@ -14,14 +14,18 @@ export class PaymentsService {
 		private provider: PaymentProvider,
 	) {}
 
-	/** Ставка комиссии платформы в процентах. Меняется без деплоя, через env. */
+	/**
+	 * Ставка комиссии платформы в процентах. Меняется без деплоя, через env.
+	 * По умолчанию 13% — это заложенные ~10% маржи платформы + ~3% комиссии
+	 * платёжного провайдера (ЮKassa удерживает свой процент на своей стороне).
+	 */
 	get feePercent(): number {
-		const raw = Number(this.config.get('PLATFORM_FEE_PERCENT', 10))
+		const raw = Number(this.config.get('PLATFORM_FEE_PERCENT', 13))
 		if (!Number.isFinite(raw) || raw < 0 || raw > 100) {
 			this.logger.warn(
-				`PLATFORM_FEE_PERCENT=${this.config.get('PLATFORM_FEE_PERCENT')} некорректен, использую 10%`,
+				`PLATFORM_FEE_PERCENT=${this.config.get('PLATFORM_FEE_PERCENT')} некорректен, использую 13%`,
 			)
-			return 10
+			return 13
 		}
 		return raw
 	}

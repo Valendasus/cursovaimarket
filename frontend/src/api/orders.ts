@@ -155,10 +155,17 @@ export async function updateOrderStatus(
 	return mapOrder(data)
 }
 
+/** Исполнитель подтверждает заказ: PENDING → ожидает оплаты (без списания) */
 export async function confirmOrder(id: string): Promise<Order> {
 	const { data } = await apiClient.post<BackendOrder>(
 		`/v1/orders/${id}/confirm`,
 	)
+	return mapOrder(data)
+}
+
+/** Заказчик оплачивает подтверждённый заказ: списание → заказ в работе */
+export async function payOrder(id: string): Promise<Order> {
+	const { data } = await apiClient.post<BackendOrder>(`/v1/orders/${id}/pay`)
 	return mapOrder(data)
 }
 

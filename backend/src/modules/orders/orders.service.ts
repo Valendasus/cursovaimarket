@@ -110,13 +110,9 @@ export class OrdersService {
 	}
 
 	/**
-	 * Подтверждение заказа исполнителем: PENDING → ACCEPTED, затем списание
-	 * с заказчика и, если оно прошло, выплата исполнителю.
-	 *
-	 * Отказ в оплате — ожидаемый исход, а не ошибка: заказ отменяется, и клиент
-	 * читает причину из order.payment.failureReason. Исключение здесь ломало бы
-	 * инвалидацию кэша на фронте и заказ висел бы PENDING в интерфейсе, будучи
-	 * уже отменённым в базе.
+	 * Подтверждение заказа исполнителем: PENDING → AWAITING_PAYMENT.
+	 * Денег здесь НЕ списываем — это лишь согласие взяться. После подтверждения
+	 * у заказчика появляется шаг оплаты (pay), и только он списывает деньги.
 	 */
 	async confirm(id: string, userId: string) {
 		await this.expireStaleOrders({ id })
@@ -136,17 +132,42 @@ export class OrdersService {
 
 		await this.prisma.order.update({
 			where: { id },
-			data: { status: OrderStatus.ACCEPTED, confirmedAt: new Date() },
+			data: { status: OrderStatus.AWAITING_PAYMENT, confirmedAt: new Date() },
 		})
 
-		const paid = await this.payments.charge(order)
+		return this.findOne(id, userId)
+	}
 
-		if (!paid) {
+	/**
+	 * Оплата заказа заказчиком: AWAITING_PAYMENT → списание → IN_PROGRESS.
+	 * Деньги депонируются в эскроу платформы (уходят исполнителю при завершении).
+	 *
+	 * Отказ в оплате — ожидаемый исход, не ошибка: заказ остаётся AWAITING_PAYMENT
+	 * с payment.failureReason, заказчик может повторить оплату или отменить заказ.
+	 * После успешной оплаты отмена уже недоступна (деньги в холде).
+	 */
+	async pay(id: string, userId: string) {
+		const order = await this.prisma.order.findUnique({ where: { id } })
+		if (!order) throw new NotFoundException('Заказ не найден')
+		if (order.studentId !== userId) {
+			throw new ForbiddenException('Оплатить заказ может только заказчик')
+		}
+		if (order.status !== OrderStatus.AWAITING_PAYMENT) {
+			throw new BadRequestException(
+				order.status === OrderStatus.PENDING
+					? 'Заказ ещё не подтверждён исполнителем'
+					: 'Заказ не в статусе ожидания оплаты',
+			)
+		}
+
+		const paid = await this.payments.charge(order)
+		if (paid) {
 			await this.prisma.order.update({
 				where: { id },
-				data: { status: OrderStatus.CANCELLED },
+				data: { status: OrderStatus.IN_PROGRESS },
 			})
-			this.logger.warn(`Заказ ${id} отменён: оплата не прошла`)
+		} else {
+			this.logger.warn(`Оплата заказа ${id} не прошла — остаётся в ожидании`)
 		}
 
 		return this.findOne(id, userId)
@@ -197,18 +218,53 @@ export class OrdersService {
 			)
 		}
 
-		// Role-based transition rules
 		const isFreelancer = order.freelancerId === userId
 		const isStudent = order.studentId === userId
+
+		// ── Отмена ────────────────────────────────────────────────────────────
+		// Отменить можно только до оплаты (PENDING / AWAITING_PAYMENT). После
+		// оплаты деньги в холде и заказ не отменяется вовсе. Отменяет заказчик
+		// (это его деньги); исполнитель может лишь отклонить ещё не подтверждённый
+		// заказ (PENDING) — «не беру».
+		if (dto.status === OrderStatus.CANCELLED) {
+			const cancelable: OrderStatus[] = [
+				OrderStatus.PENDING,
+				OrderStatus.AWAITING_PAYMENT,
+			]
+			if (!cancelable.includes(order.status)) {
+				throw new BadRequestException('Оплаченный заказ отменить нельзя')
+			}
+			const freelancerMayReject =
+				isFreelancer && order.status === OrderStatus.PENDING
+			if (!isStudent && !freelancerMayReject) {
+				throw new ForbiddenException('Отменить заказ может только заказчик')
+			}
+			const cancelled = await this.prisma.order.update({
+				where: { id },
+				data: { status: OrderStatus.CANCELLED },
+				include: {
+					service: { select: { id: true, title: true } },
+					package: true,
+					student: { select: { id: true, name: true, avatar: true } },
+					freelancer: { select: { id: true, name: true, avatar: true } },
+					review: true,
+					payment: true,
+					payout: true,
+				},
+			})
+			return this.withSignedAvatars(cancelled)
+		}
+
+		// ── Рабочие переходы (после оплаты) ──────────────────────────────────
+		// Подтверждение (confirm) и оплата (pay) — отдельные методы; сюда попадают
+		// только статусные переходы в ходе работы над заказом.
 		const allowedForFreelancer: OrderStatus[] = [
 			OrderStatus.IN_PROGRESS,
 			OrderStatus.REVIEW,
-			OrderStatus.CANCELLED,
 		]
 		const allowedForStudent: OrderStatus[] = [
 			OrderStatus.REVISION,
 			OrderStatus.COMPLETED,
-			OrderStatus.CANCELLED,
 		]
 
 		if (isFreelancer && !allowedForFreelancer.includes(dto.status)) {
@@ -218,38 +274,19 @@ export class OrdersService {
 			throw new ForbiddenException('Недопустимый статус для заказчика')
 		}
 
-		// Sequential transition validation
 		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-			// Из PENDING в работу напрямую нельзя: единственный путь вперёд —
-			// confirm(), который депонирует средства.
-			[OrderStatus.PENDING]: [OrderStatus.CANCELLED],
-			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+			// PENDING → AWAITING_PAYMENT только через confirm(); AWAITING_PAYMENT →
+			// IN_PROGRESS только через pay() — здесь этих переходов нет.
+			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS], // legacy-заказы
 			[OrderStatus.IN_PROGRESS]: [OrderStatus.REVIEW],
 			[OrderStatus.REVIEW]: [OrderStatus.COMPLETED, OrderStatus.REVISION],
-			[OrderStatus.REVISION]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+			[OrderStatus.REVISION]: [OrderStatus.IN_PROGRESS],
 		}
 		const allowedNext = validTransitions[order.status] ?? []
 		if (!allowedNext.includes(dto.status)) {
 			throw new BadRequestException(
 				`Переход из статуса ${order.status} в ${dto.status} недопустим`,
 			)
-		}
-
-		// Работа не начинается, пока деньги не депонированы в эскроу
-		if (dto.status === OrderStatus.IN_PROGRESS) {
-			const payment = await this.prisma.payment.findUnique({
-				where: { orderId: id },
-			})
-			if (payment && payment.status !== PaymentStatus.SUCCEEDED) {
-				throw new BadRequestException(
-					'Нельзя взять заказ в работу: оплата не прошла',
-				)
-			}
-		}
-
-		// При отмене заказа: возврат средств из эскроу заказчику (если они были списаны)
-		if (dto.status === OrderStatus.CANCELLED) {
-			await this.payments.refund(order)
 		}
 
 		// При завершении заказа: переводим средства исполнителю из эскроу

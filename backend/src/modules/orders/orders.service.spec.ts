@@ -4,9 +4,11 @@ import { OrderStatus, PaymentStatus } from '@prisma/client'
 import { OrdersService } from './orders.service'
 
 /**
- * Тесты стейт-машины заказа на моках. Главное, что здесь защищается:
- * из PENDING нельзя попасть в работу минуя подтверждение — иначе исполнитель
- * начинал бы работу в обход оплаты.
+ * Тесты стейт-машины заказа на моках. Ключевое, что защищается:
+ * — подтверждение исполнителем (confirm) НЕ списывает деньги;
+ * — списание только на оплате заказчиком (pay);
+ * — отменить можно лишь до оплаты, и только заказчиком (исполнитель — отклонить
+ *   ещё не подтверждённый заказ); оплаченный заказ не отменяется вовсе.
  */
 
 interface TestOrder {
@@ -66,7 +68,6 @@ function build(order: Partial<TestOrder> = {}, payment: unknown = null) {
 		charge: jest.fn().mockResolvedValue(true),
 		sendPayout: jest.fn().mockResolvedValue(true),
 		refund: jest.fn().mockResolvedValue(true),
-		chargeAndPayout: jest.fn().mockResolvedValue(true),
 	}
 	const service = new OrdersService(
 		prisma as never,
@@ -83,38 +84,25 @@ describe('OrdersService', () => {
 			await service.create('student_1', { packageId: 'pkg_1' })
 
 			const data = prisma.order.create.mock.calls[0][0].data
-			const hours =
-				(data.confirmDeadline.getTime() - Date.now()) / 3_600_000
+			const hours = (data.confirmDeadline.getTime() - Date.now()) / 3_600_000
 			expect(hours).toBeGreaterThan(23.9)
 			expect(hours).toBeLessThan(24.1)
 		})
 	})
 
-	describe('confirm (депонирование в эскроу)', () => {
-		it('переводит в ACCEPTED и запускает списание в эскроу без выплаты', async () => {
+	describe('confirm (подтверждение исполнителем)', () => {
+		it('переводит в AWAITING_PAYMENT и НЕ списывает деньги', async () => {
 			const { service, prisma, payments } = build()
 			await service.confirm('order_1', 'freelancer_1')
 
 			expect(prisma.order.update).toHaveBeenCalledWith(
 				expect.objectContaining({
-					data: expect.objectContaining({ status: OrderStatus.ACCEPTED }),
+					data: expect.objectContaining({
+						status: OrderStatus.AWAITING_PAYMENT,
+					}),
 				}),
 			)
-			expect(payments.charge).toHaveBeenCalled()
-			expect(payments.sendPayout).not.toHaveBeenCalled()
-		})
-
-		it('отменяет заказ, если оплата не прошла', async () => {
-			const { service, prisma, payments } = build()
-			payments.charge.mockResolvedValue(false)
-
-			await service.confirm('order_1', 'freelancer_1')
-
-			expect(prisma.order.update).toHaveBeenLastCalledWith(
-				expect.objectContaining({
-					data: { status: OrderStatus.CANCELLED },
-				}),
-			)
+			expect(payments.charge).not.toHaveBeenCalled()
 		})
 
 		it('подтвердить может только исполнитель', async () => {
@@ -125,10 +113,10 @@ describe('OrdersService', () => {
 		})
 
 		it('повторное подтверждение отклоняется', async () => {
-			const { service } = build({ status: OrderStatus.ACCEPTED })
-			await expect(service.confirm('order_1', 'freelancer_1')).rejects.toThrow(
-				BadRequestException,
-			)
+			const { service } = build({ status: OrderStatus.AWAITING_PAYMENT })
+			await expect(
+				service.confirm('order_1', 'freelancer_1'),
+			).rejects.toThrow(BadRequestException)
 		})
 
 		it('отменённый по таймауту заказ подтвердить нельзя', async () => {
@@ -139,43 +127,58 @@ describe('OrdersService', () => {
 		})
 	})
 
-	describe('updateStatus', () => {
-		it('PENDING → IN_PROGRESS запрещён: только через подтверждение', async () => {
+	describe('pay (оплата заказчиком)', () => {
+		it('списывает и переводит в IN_PROGRESS', async () => {
+			const { service, prisma, payments } = build({
+				status: OrderStatus.AWAITING_PAYMENT,
+			})
+			await service.pay('order_1', 'student_1')
+
+			expect(payments.charge).toHaveBeenCalled()
+			expect(prisma.order.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: { status: OrderStatus.IN_PROGRESS },
+				}),
+			)
+		})
+
+		it('оплатить может только заказчик', async () => {
+			const { service } = build({ status: OrderStatus.AWAITING_PAYMENT })
+			await expect(service.pay('order_1', 'freelancer_1')).rejects.toThrow(
+				ForbiddenException,
+			)
+		})
+
+		it('нельзя оплатить неподтверждённый заказ', async () => {
+			const { service } = build({ status: OrderStatus.PENDING })
+			await expect(service.pay('order_1', 'student_1')).rejects.toThrow(
+				/не подтверждён/,
+			)
+		})
+
+		it('при отказе в оплате заказ остаётся в ожидании (не IN_PROGRESS)', async () => {
+			const { service, prisma, payments } = build({
+				status: OrderStatus.AWAITING_PAYMENT,
+			})
+			payments.charge.mockResolvedValue(false)
+			await service.pay('order_1', 'student_1')
+
+			const statusUpdates = prisma.order.update.mock.calls.filter(
+				(c: [{ data?: { status?: OrderStatus } }]) =>
+					c[0]?.data?.status === OrderStatus.IN_PROGRESS,
+			)
+			expect(statusUpdates).toHaveLength(0)
+		})
+	})
+
+	describe('updateStatus — рабочие переходы', () => {
+		it('PENDING → IN_PROGRESS запрещён (только через confirm+pay)', async () => {
 			const { service } = build({ status: OrderStatus.PENDING })
 			await expect(
 				service.updateStatus('order_1', 'freelancer_1', {
 					status: OrderStatus.IN_PROGRESS,
 				}),
 			).rejects.toThrow(BadRequestException)
-		})
-
-		it('PENDING → CANCELLED разрешён', async () => {
-			const { service, prisma } = build({ status: OrderStatus.PENDING })
-			await service.updateStatus('order_1', 'freelancer_1', {
-				status: OrderStatus.CANCELLED,
-			})
-			expect(prisma.order.update).toHaveBeenCalled()
-		})
-
-		it('оплаченный ACCEPTED уходит в работу', async () => {
-			const { service, prisma } = build({ status: OrderStatus.ACCEPTED }, {
-				status: PaymentStatus.SUCCEEDED,
-			})
-			await service.updateStatus('order_1', 'freelancer_1', {
-				status: OrderStatus.IN_PROGRESS,
-			})
-			expect(prisma.order.update).toHaveBeenCalled()
-		})
-
-		it('неоплаченный ACCEPTED в работу не уходит', async () => {
-			const { service } = build({ status: OrderStatus.ACCEPTED }, {
-				status: PaymentStatus.FAILED,
-			})
-			await expect(
-				service.updateStatus('order_1', 'freelancer_1', {
-					status: OrderStatus.IN_PROGRESS,
-				}),
-			).rejects.toThrow(/оплата не прошла/)
 		})
 
 		it('фрилансер отправляет работу на проверку (IN_PROGRESS → REVIEW)', async () => {
@@ -190,7 +193,7 @@ describe('OrdersService', () => {
 			)
 		})
 
-		it('фрилансер НЕ может закрыть заказ в обход проверки (IN_PROGRESS → COMPLETED запрещён)', async () => {
+		it('фрилансер НЕ может закрыть заказ в обход проверки (IN_PROGRESS → COMPLETED)', async () => {
 			const { service } = build({ status: OrderStatus.IN_PROGRESS })
 			await expect(
 				service.updateStatus('order_1', 'freelancer_1', {
@@ -199,7 +202,7 @@ describe('OrdersService', () => {
 			).rejects.toThrow(ForbiddenException)
 		})
 
-		it('заказчик принимает работу (REVIEW → COMPLETED) и запускает выплату из эскроу', async () => {
+		it('заказчик принимает работу (REVIEW → COMPLETED) → выплата из эскроу', async () => {
 			const { service, prisma, payments } = build(
 				{ status: OrderStatus.REVIEW },
 				{ status: PaymentStatus.SUCCEEDED },
@@ -215,17 +218,6 @@ describe('OrdersService', () => {
 			expect(payments.sendPayout).toHaveBeenCalled()
 		})
 
-		it('отмена оплаченного заказа инициирует возврат средств (refund)', async () => {
-			const { service, payments } = build(
-				{ status: OrderStatus.ACCEPTED },
-				{ status: PaymentStatus.SUCCEEDED },
-			)
-			await service.updateStatus('order_1', 'student_1', {
-				status: OrderStatus.CANCELLED,
-			})
-			expect(payments.refund).toHaveBeenCalled()
-		})
-
 		it('завершённый заказ уже не меняется', async () => {
 			const { service } = build({ status: OrderStatus.COMPLETED })
 			await expect(
@@ -233,6 +225,51 @@ describe('OrdersService', () => {
 					status: OrderStatus.IN_PROGRESS,
 				}),
 			).rejects.toThrow(BadRequestException)
+		})
+	})
+
+	describe('updateStatus — отмена', () => {
+		it('заказчик отменяет до оплаты (AWAITING_PAYMENT)', async () => {
+			const { service, prisma } = build({
+				status: OrderStatus.AWAITING_PAYMENT,
+			})
+			await service.updateStatus('order_1', 'student_1', {
+				status: OrderStatus.CANCELLED,
+			})
+			expect(prisma.order.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: { status: OrderStatus.CANCELLED },
+				}),
+			)
+		})
+
+		it('исполнитель отклоняет ещё не подтверждённый заказ (PENDING)', async () => {
+			const { service, prisma } = build({ status: OrderStatus.PENDING })
+			await service.updateStatus('order_1', 'freelancer_1', {
+				status: OrderStatus.CANCELLED,
+			})
+			expect(prisma.order.update).toHaveBeenCalled()
+		})
+
+		it('исполнитель НЕ может отменить подтверждённый заказ (AWAITING_PAYMENT)', async () => {
+			const { service } = build({ status: OrderStatus.AWAITING_PAYMENT })
+			await expect(
+				service.updateStatus('order_1', 'freelancer_1', {
+					status: OrderStatus.CANCELLED,
+				}),
+			).rejects.toThrow(ForbiddenException)
+		})
+
+		it('оплаченный заказ (IN_PROGRESS) отменить нельзя', async () => {
+			const { service } = build(
+				{ status: OrderStatus.IN_PROGRESS },
+				{ status: PaymentStatus.SUCCEEDED },
+			)
+			await expect(
+				service.updateStatus('order_1', 'student_1', {
+					status: OrderStatus.CANCELLED,
+				}),
+			).rejects.toThrow(/отменить нельзя/)
 		})
 	})
 })

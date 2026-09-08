@@ -47,10 +47,19 @@ export class OrdersController {
 	@Post(':id/confirm')
 	@UseGuards(EmailVerifiedGuard)
 	@ApiOperation({
-		summary: 'Подтвердить заказ (исполнитель). Депонирует средства в эскроу',
+		summary: 'Подтвердить заказ (исполнитель): PENDING → ожидает оплаты',
 	})
 	confirm(@Param('id') id: string, @CurrentUser('id') userId: string) {
 		return this.ordersService.confirm(id, userId)
+	}
+
+	@Post(':id/pay')
+	@UseGuards(EmailVerifiedGuard)
+	@ApiOperation({
+		summary: 'Оплатить заказ (заказчик): списание → заказ в работе',
+	})
+	pay(@Param('id') id: string, @CurrentUser('id') userId: string) {
+		return this.ordersService.pay(id, userId)
 	}
 
 	@Patch(':id/status')

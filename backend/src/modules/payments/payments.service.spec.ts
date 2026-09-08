@@ -88,10 +88,10 @@ describe('PaymentsService', () => {
 			expect(service.calculateFee(3_333)).toBe(333)
 		})
 
-		it('откатывается на 10% при мусоре в конфиге', () => {
-			expect(build('абв')[0].feePercent).toBe(10)
-			expect(build(-5)[0].feePercent).toBe(10)
-			expect(build(150)[0].feePercent).toBe(10)
+		it('откатывается на дефолт 13% при мусоре в конфиге', () => {
+			expect(build('абв')[0].feePercent).toBe(13)
+			expect(build(-5)[0].feePercent).toBe(13)
+			expect(build(150)[0].feePercent).toBe(13)
 		})
 	})
 
