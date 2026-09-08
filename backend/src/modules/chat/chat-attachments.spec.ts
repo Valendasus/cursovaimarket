@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { isAllowedChatAttachment } from './chat-attachments'
 
 describe('isAllowedChatAttachment', () => {

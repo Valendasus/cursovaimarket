@@ -20,7 +20,7 @@ export class UsersService {
 		private s3Service: S3Service,
 	) {}
 
-	async findById(id: string) {
+	async findMe(id: string) {
 		const user = await this.prisma.user.findUnique({
 			where: { id },
 			include: { profile: true },
@@ -31,12 +31,37 @@ export class UsersService {
 		return this.withSignedAvatar(safe)
 	}
 
+	async findPublicById(id: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				name: true,
+				avatar: true,
+				role: true,
+				createdAt: true,
+				profile: true,
+			},
+		})
+		if (!user) throw new NotFoundException('Пользователь не найден')
+		return this.withSignedAvatar(user)
+	}
+
+	async findById(id: string) {
+		return this.findPublicById(id)
+	}
+
 	async findFreelancers(page = 1, limit = 12) {
 		const skip = (page - 1) * limit
 		const [data, total] = await Promise.all([
 			this.prisma.user.findMany({
 				where: { role: UserRole.FREELANCER },
-				include: {
+				select: {
+					id: true,
+					name: true,
+					avatar: true,
+					role: true,
+					createdAt: true,
 					profile: true,
 					services: { select: { id: true, rating: true } },
 				},
@@ -47,9 +72,8 @@ export class UsersService {
 			this.prisma.user.count({ where: { role: UserRole.FREELANCER } }),
 		])
 
-		const safe = data.map(({ password, ...u }) => u)
 		const signed = await Promise.all(
-			safe.map(user => this.withSignedAvatar(user)),
+			data.map(user => this.withSignedAvatar(user)),
 		)
 		return { data: signed, total, page, limit }
 	}

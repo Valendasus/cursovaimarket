@@ -60,13 +60,13 @@ export class UsersController {
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Мой профиль' })
 	getMe(@CurrentUser('id') userId: string) {
-		return this.usersService.findById(userId)
+		return this.usersService.findMe(userId)
 	}
 
 	@Get(':id')
 	@ApiOperation({ summary: 'Профиль пользователя по ID' })
 	findOne(@Param('id') id: string) {
-		return this.usersService.findById(id)
+		return this.usersService.findPublicById(id)
 	}
 
 	@Patch('me')

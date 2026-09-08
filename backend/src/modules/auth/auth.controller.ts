@@ -91,8 +91,6 @@ export class AuthController {
 	}
 
 	@Post('logout')
-	@UseGuards(AuthGuard('jwt'))
-	@ApiBearerAuth()
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Выход из системы' })
 	async logout(

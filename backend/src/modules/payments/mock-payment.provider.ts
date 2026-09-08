@@ -4,6 +4,7 @@ import {
 	PaymentProvider,
 	PayoutRequest,
 	ProviderResult,
+	RefundRequest,
 } from './payment-provider.interface'
 
 /**
@@ -30,6 +31,14 @@ export class MockPaymentProvider extends PaymentProvider {
 		const ref = this.makeRef('payout')
 		this.logger.log(
 			`[MOCK] Выплата ${this.formatAmount(request.amount)} исполнителю ${request.payeeId} по заказу ${request.orderId} → ${ref}`,
+		)
+		return { success: true, providerRef: ref }
+	}
+
+	async refund(request: RefundRequest): Promise<ProviderResult> {
+		const ref = this.makeRef('refund')
+		this.logger.log(
+			`[MOCK] Возврат ${this.formatAmount(request.amount)} заказчику ${request.payerId} по заказу ${request.orderId} → ${ref}`,
 		)
 		return { success: true, providerRef: ref }
 	}

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 import type { FreelancerProfile, ServiceCategory } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { motion, useAnimation } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -111,6 +112,7 @@ export function SettingsTab() {
 		setAvatarFile(file)
 	}
 
+	const navigate = useNavigate()
 	const handleSwitchRole = async () => {
 		setRoleSwitching(true)
 		setRoleError('')
@@ -120,9 +122,13 @@ export function SettingsTab() {
 				role: (updated as { role: string }).role as 'student' | 'freelancer',
 			})
 			setRoleConfirm(false)
-			// Small delay so store update propagates before navigation
-			await new Promise(r => setTimeout(r, 50))
-			window.location.replace('/dashboard')
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+				queryClient.invalidateQueries({ queryKey: ['my-services'] }),
+				queryClient.invalidateQueries({ queryKey: ['my-reviews'] }),
+				queryClient.invalidateQueries({ queryKey: ['received-reviews'] }),
+			])
+			navigate({ to: '/dashboard', search: { tab: 'orders' } })
 		} catch (err: unknown) {
 			setRoleError(extractApiError(err, 'Не удалось сменить роль'))
 		} finally {

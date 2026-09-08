@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { OrderStatus, PaymentStatus } from '@prisma/client'
 import { OrdersService } from './orders.service'
@@ -53,9 +54,20 @@ function build(order: Partial<TestOrder> = {}, payment: unknown = null) {
 				service: { id: 'service_1', freelancerId: 'freelancer_1', isActive: true },
 			}),
 		},
+		freelancerProfile: {
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+		},
+		service: {
+			update: jest.fn().mockResolvedValue({}),
+		},
 	}
 	const s3 = { signUrl: jest.fn().mockImplementation((v: string) => v) }
-	const payments = { chargeAndPayout: jest.fn().mockResolvedValue(true) }
+	const payments = {
+		charge: jest.fn().mockResolvedValue(true),
+		sendPayout: jest.fn().mockResolvedValue(true),
+		refund: jest.fn().mockResolvedValue(true),
+		chargeAndPayout: jest.fn().mockResolvedValue(true),
+	}
 	const service = new OrdersService(
 		prisma as never,
 		s3 as never,
@@ -78,8 +90,8 @@ describe('OrdersService', () => {
 		})
 	})
 
-	describe('confirm', () => {
-		it('переводит в ACCEPTED и запускает оплату', async () => {
+	describe('confirm (депонирование в эскроу)', () => {
+		it('переводит в ACCEPTED и запускает списание в эскроу без выплаты', async () => {
 			const { service, prisma, payments } = build()
 			await service.confirm('order_1', 'freelancer_1')
 
@@ -88,12 +100,13 @@ describe('OrdersService', () => {
 					data: expect.objectContaining({ status: OrderStatus.ACCEPTED }),
 				}),
 			)
-			expect(payments.chargeAndPayout).toHaveBeenCalled()
+			expect(payments.charge).toHaveBeenCalled()
+			expect(payments.sendPayout).not.toHaveBeenCalled()
 		})
 
 		it('отменяет заказ, если оплата не прошла', async () => {
 			const { service, prisma, payments } = build()
-			payments.chargeAndPayout.mockResolvedValue(false)
+			payments.charge.mockResolvedValue(false)
 
 			await service.confirm('order_1', 'freelancer_1')
 
@@ -163,6 +176,54 @@ describe('OrdersService', () => {
 					status: OrderStatus.IN_PROGRESS,
 				}),
 			).rejects.toThrow(/оплата не прошла/)
+		})
+
+		it('фрилансер отправляет работу на проверку (IN_PROGRESS → REVIEW)', async () => {
+			const { service, prisma } = build({ status: OrderStatus.IN_PROGRESS })
+			await service.updateStatus('order_1', 'freelancer_1', {
+				status: OrderStatus.REVIEW,
+			})
+			expect(prisma.order.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ status: OrderStatus.REVIEW }),
+				}),
+			)
+		})
+
+		it('фрилансер НЕ может закрыть заказ в обход проверки (IN_PROGRESS → COMPLETED запрещён)', async () => {
+			const { service } = build({ status: OrderStatus.IN_PROGRESS })
+			await expect(
+				service.updateStatus('order_1', 'freelancer_1', {
+					status: OrderStatus.COMPLETED,
+				}),
+			).rejects.toThrow(ForbiddenException)
+		})
+
+		it('заказчик принимает работу (REVIEW → COMPLETED) и запускает выплату из эскроу', async () => {
+			const { service, prisma, payments } = build(
+				{ status: OrderStatus.REVIEW },
+				{ status: PaymentStatus.SUCCEEDED },
+			)
+			await service.updateStatus('order_1', 'student_1', {
+				status: OrderStatus.COMPLETED,
+			})
+			expect(prisma.order.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ status: OrderStatus.COMPLETED }),
+				}),
+			)
+			expect(payments.sendPayout).toHaveBeenCalled()
+		})
+
+		it('отмена оплаченного заказа инициирует возврат средств (refund)', async () => {
+			const { service, payments } = build(
+				{ status: OrderStatus.ACCEPTED },
+				{ status: PaymentStatus.SUCCEEDED },
+			)
+			await service.updateStatus('order_1', 'student_1', {
+				status: OrderStatus.CANCELLED,
+			})
+			expect(payments.refund).toHaveBeenCalled()
 		})
 
 		it('завершённый заказ уже не меняется', async () => {

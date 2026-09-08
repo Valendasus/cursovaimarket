@@ -45,8 +45,9 @@ export class OrdersController {
 	}
 
 	@Post(':id/confirm')
+	@UseGuards(EmailVerifiedGuard)
 	@ApiOperation({
-		summary: 'Подтвердить заказ (исполнитель). Проводит оплату и выплату',
+		summary: 'Подтвердить заказ (исполнитель). Депонирует средства в эскроу',
 	})
 	confirm(@Param('id') id: string, @CurrentUser('id') userId: string) {
 		return this.ordersService.confirm(id, userId)

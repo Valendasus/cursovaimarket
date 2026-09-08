@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { clampPagination } from './pagination'
 
 const opts = { defaultLimit: 50, maxLimit: 100 }

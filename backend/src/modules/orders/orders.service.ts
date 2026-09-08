@@ -78,6 +78,7 @@ export class OrdersService {
 				freelancer: { select: { id: true, name: true, avatar: true } },
 				review: true,
 				payment: true,
+				payout: true,
 			},
 			orderBy: { createdAt: 'desc' },
 		})
@@ -96,6 +97,7 @@ export class OrdersService {
 				freelancer: { select: { id: true, name: true, avatar: true } },
 				review: true,
 				payment: true,
+				payout: true,
 			},
 		})
 
@@ -137,7 +139,7 @@ export class OrdersService {
 			data: { status: OrderStatus.ACCEPTED, confirmedAt: new Date() },
 		})
 
-		const paid = await this.payments.chargeAndPayout(order)
+		const paid = await this.payments.charge(order)
 
 		if (!paid) {
 			await this.prisma.order.update({
@@ -201,7 +203,6 @@ export class OrdersService {
 		const allowedForFreelancer: OrderStatus[] = [
 			OrderStatus.IN_PROGRESS,
 			OrderStatus.REVIEW,
-			OrderStatus.COMPLETED,
 			OrderStatus.CANCELLED,
 		]
 		const allowedForStudent: OrderStatus[] = [
@@ -220,11 +221,10 @@ export class OrdersService {
 		// Sequential transition validation
 		const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
 			// Из PENDING в работу напрямую нельзя: единственный путь вперёд —
-			// confirm(), который проводит оплату. Иначе исполнитель начинал бы
-			// работу в обход подтверждения, а значит и в обход списания денег.
+			// confirm(), который депонирует средства.
 			[OrderStatus.PENDING]: [OrderStatus.CANCELLED],
 			[OrderStatus.ACCEPTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
-			[OrderStatus.IN_PROGRESS]: [OrderStatus.REVIEW, OrderStatus.COMPLETED],
+			[OrderStatus.IN_PROGRESS]: [OrderStatus.REVIEW],
 			[OrderStatus.REVIEW]: [OrderStatus.COMPLETED, OrderStatus.REVISION],
 			[OrderStatus.REVISION]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
 		}
@@ -235,7 +235,7 @@ export class OrdersService {
 			)
 		}
 
-		// Работа не начинается, пока деньги не списаны с заказчика
+		// Работа не начинается, пока деньги не депонированы в эскроу
 		if (dto.status === OrderStatus.IN_PROGRESS) {
 			const payment = await this.prisma.payment.findUnique({
 				where: { orderId: id },
@@ -247,6 +247,24 @@ export class OrdersService {
 			}
 		}
 
+		// При отмене заказа: возврат средств из эскроу заказчику (если они были списаны)
+		if (dto.status === OrderStatus.CANCELLED) {
+			await this.payments.refund(order)
+		}
+
+		// При завершении заказа: переводим средства исполнителю из эскроу
+		if (dto.status === OrderStatus.COMPLETED) {
+			const payment = await this.prisma.payment.findUnique({
+				where: { orderId: id },
+			})
+			if (!payment || payment.status !== PaymentStatus.SUCCEEDED) {
+				throw new BadRequestException(
+					'Нельзя завершить заказ: оплата не подтверждена',
+				)
+			}
+			await this.payments.sendPayout(order)
+		}
+
 		const updated = await this.prisma.order.update({
 			where: { id },
 			data: { status: dto.status },
@@ -255,6 +273,9 @@ export class OrdersService {
 				package: true,
 				student: { select: { id: true, name: true, avatar: true } },
 				freelancer: { select: { id: true, name: true, avatar: true } },
+				review: true,
+				payment: true,
+				payout: true,
 			},
 		})
 

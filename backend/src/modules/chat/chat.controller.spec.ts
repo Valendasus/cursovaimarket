@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { ForbiddenException } from '@nestjs/common'
 import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'

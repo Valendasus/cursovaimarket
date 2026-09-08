@@ -1,5 +1,6 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
 import { Roles } from '@/common/decorators/roles.decorator'
+import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'
 import { RolesGuard } from '@/common/guards/roles.guard'
 import {
 	Body,
@@ -47,16 +48,16 @@ export class ServicesController {
 	}
 
 	@Post()
-	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@UseGuards(AuthGuard('jwt'), RolesGuard, EmailVerifiedGuard)
 	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
-	@ApiOperation({ summary: 'Создать услугу (только фрилансер)' })
+	@ApiOperation({ summary: 'Создать услугу (только фрилансер с подтверждённым email)' })
 	create(@CurrentUser('id') userId: string, @Body() dto: CreateServiceDto) {
 		return this.servicesService.create(userId, dto)
 	}
 
 	@Patch(':id')
-	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@UseGuards(AuthGuard('jwt'), RolesGuard, EmailVerifiedGuard)
 	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Обновить услугу' })
@@ -69,7 +70,7 @@ export class ServicesController {
 	}
 
 	@Delete(':id')
-	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@UseGuards(AuthGuard('jwt'), RolesGuard, EmailVerifiedGuard)
 	@Roles(UserRole.FREELANCER)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Удалить услугу' })

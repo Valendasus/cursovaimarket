@@ -36,15 +36,12 @@ export class PaymentsService {
 	}
 
 	/**
-	 * Списывает деньги с заказчика и, если списание прошло, сразу выплачивает
-	 * исполнителю сумму за вычетом комиссии.
+	 * Списывает деньги с заказчика и депонирует их на счёте эскроу платформы.
+	 * Выплата исполнителю на этом этапе НЕ производится.
 	 *
-	 * Порядок принципиален: выплата уходит ТОЛЬКО после успешного списания.
-	 * Иначе платформа выплатит деньги, которых не получила.
-	 *
-	 * Возвращает true, если деньги с заказчика списаны.
+	 * Возвращает true, если деньги с заказчика успешно списаны.
 	 */
-	async chargeAndPayout(order: Order): Promise<boolean> {
+	async charge(order: Order): Promise<boolean> {
 		const amount = order.totalPrice
 		const fee = this.calculateFee(amount)
 
@@ -93,25 +90,50 @@ export class PaymentsService {
 			},
 		})
 
-		await this.sendPayout(order, amount - fee)
 		return true
 	}
 
 	/**
-	 * Выплата исполнителю. Её провал НЕ отменяет заказ: деньги с заказчика уже
-	 * списаны, исполнитель уже подтвердил. Это операционная проблема —
-	 * висит FAILED-строкой в payouts и разбирается вручную.
+	 * Выплата исполнителю из средств эскроу при завершении заказа (COMPLETED).
+	 * Переводит исполнителю сумму за вычетом комиссии платформы.
+	 *
+	 * Выплата уходит ТОЛЬКО если платёж заказчика в статусе SUCCEEDED
+	 * и выплата ещё не была отправлена ранее (идемпотентность).
 	 */
-	private async sendPayout(order: Order, amount: number): Promise<void> {
+	async sendPayout(order: Order): Promise<boolean> {
+		const payment = await this.prisma.payment.findUnique({
+			where: { orderId: order.id },
+		})
+
+		if (!payment || payment.status !== PaymentStatus.SUCCEEDED) {
+			this.logger.error(
+				`Нельзя выплатить по заказу ${order.id}: платёж заказчика не подтверждён`,
+			)
+			return false
+		}
+
+		const existingPayout = await this.prisma.payout.findUnique({
+			where: { orderId: order.id },
+		})
+		if (existingPayout && existingPayout.status === PayoutStatus.SENT) {
+			return true
+		}
+
+		const payoutAmount = payment.amount - payment.fee
+
 		const payout = await this.prisma.payout.upsert({
 			where: { orderId: order.id },
-			create: { orderId: order.id, amount, status: PayoutStatus.PENDING },
-			update: { amount, status: PayoutStatus.PENDING },
+			create: {
+				orderId: order.id,
+				amount: payoutAmount,
+				status: PayoutStatus.PENDING,
+			},
+			update: { amount: payoutAmount, status: PayoutStatus.PENDING },
 		})
 
 		const result = await this.provider.payout({
 			orderId: order.id,
-			amount,
+			amount: payoutAmount,
 			payeeId: order.freelancerId,
 			description: `Выплата по заказу ${order.id}`,
 		})
@@ -134,8 +156,69 @@ export class PaymentsService {
 
 		if (!result.success) {
 			this.logger.error(
-				`Выплата по заказу ${order.id} не прошла: ${result.failureReason}. Деньги с заказчика списаны — требуется ручной разбор.`,
+				`Выплата по заказу ${order.id} не прошла: ${result.failureReason}. Деньги заказчика в эскроу — требуется ручной разбор.`,
 			)
+			return false
 		}
+
+		return true
+	}
+
+	/**
+	 * Возврат средств заказчику при отмене заказа (CANCELLED).
+	 * Возврат возможен только если платёж был проведён (SUCCEEDED)
+	 * и выплата исполнителю ещё не отправлена.
+	 */
+	async refund(order: Order): Promise<boolean> {
+		const payment = await this.prisma.payment.findUnique({
+			where: { orderId: order.id },
+		})
+
+		if (!payment || payment.status !== PaymentStatus.SUCCEEDED) {
+			return false
+		}
+
+		const payout = await this.prisma.payout.findUnique({
+			where: { orderId: order.id },
+		})
+
+		if (payout && payout.status === PayoutStatus.SENT) {
+			this.logger.error(
+				`Нельзя вернуть средства по заказу ${order.id}: выплата исполнителю уже отправлена`,
+			)
+			return false
+		}
+
+		const result = await this.provider.refund({
+			orderId: order.id,
+			amount: payment.amount,
+			payerId: order.studentId,
+			description: `Возврат средств по заказу ${order.id}`,
+		})
+
+		if (result.success) {
+			await this.prisma.payment.update({
+				where: { id: payment.id },
+				data: {
+					status: PaymentStatus.REFUNDED,
+					failureReason: null,
+				},
+			})
+			return true
+		} else {
+			this.logger.error(
+				`Возврат средств по заказу ${order.id} не прошёл: ${result.failureReason}`,
+			)
+			return false
+		}
+	}
+
+	/**
+	 * Совмещённое списание и выплата (для обратной совместимости).
+	 */
+	async chargeAndPayout(order: Order): Promise<boolean> {
+		const charged = await this.charge(order)
+		if (!charged) return false
+		return this.sendPayout(order)
 	}
 }

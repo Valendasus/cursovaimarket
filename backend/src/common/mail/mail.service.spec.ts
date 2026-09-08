@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { ConfigService } from '@nestjs/config'
 import { Logger } from '@nestjs/common'
 import { MailService } from './mail.service'

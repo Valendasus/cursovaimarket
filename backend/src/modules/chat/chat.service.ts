@@ -2,6 +2,7 @@ import { clampPagination } from '@/common/pagination'
 import { S3Service } from '@/common/s3/s3.service'
 import { PrismaService } from '@/prisma/prisma.service'
 import {
+	BadRequestException,
 	ForbiddenException,
 	Injectable,
 	NotFoundException,
@@ -125,9 +126,14 @@ export class ChatService {
 			size?: number | null
 		},
 	) {
-		const normalizedAttachment = attachment?.url
-			? this.s3Service.normalizeRef(attachment.url)
-			: undefined
+		let normalizedAttachment: string | null = null
+		if (attachment?.url) {
+			const normalized = this.s3Service.normalizeRef(attachment.url)
+			if (!normalized || !this.s3Service.isS3Ref(normalized)) {
+				throw new BadRequestException('Недопустимый файл вложения')
+			}
+			normalizedAttachment = normalized
+		}
 		const [msg] = await this.prisma.$transaction([
 			this.prisma.directMessage.create({
 				data: {

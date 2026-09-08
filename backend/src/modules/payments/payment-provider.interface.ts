@@ -23,6 +23,14 @@ export interface PayoutRequest {
 	description: string
 }
 
+export interface RefundRequest {
+	orderId: string
+	/** Сумма к возврату заказчику, в копейках */
+	amount: number
+	payerId: string
+	description: string
+}
+
 export interface ProviderResult {
 	success: boolean
 	/** Идентификатор операции на стороне провайдера */
@@ -32,11 +40,14 @@ export interface ProviderResult {
 }
 
 export abstract class PaymentProvider {
-	/** Списать деньги с заказчика */
+	/** Списать деньги с заказчика (депонирование в эскроу) */
 	abstract charge(request: ChargeRequest): Promise<ProviderResult>
 
 	/** Выплатить деньги исполнителю */
 	abstract payout(request: PayoutRequest): Promise<ProviderResult>
+
+	/** Вернуть деньги заказчику при отмене */
+	abstract refund(request: RefundRequest): Promise<ProviderResult>
 
 	/**
 	 * Работает ли провайдер с настоящими деньгами. Фронт по этому флагу

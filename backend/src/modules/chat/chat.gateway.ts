@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import {
 	ConnectedSocket,
@@ -355,14 +356,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 				status: 'sent',
 				messageId: message.id,
 			})
-		} catch (err) {
+		} catch (err: unknown) {
 			if (clientMessageId) {
 				this.server.to(`user:${client.data.userId}`).emit('messageAck', {
 					clientMessageId,
 					status: 'failed',
 				})
 			}
-			if (err instanceof WsException) return
+			const message =
+				err instanceof Error ? err.message : 'Ошибка при отправке сообщения'
+			client.emit('error', { message })
+			if (err instanceof WsException || err instanceof BadRequestException) {
+				return
+			}
 			throw err
 		}
 	}

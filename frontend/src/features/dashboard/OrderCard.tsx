@@ -155,14 +155,23 @@ export function OrderCard({
 						)}
 					</p>
 
-					{/* Оплата: успех показываем исполнителю (он получил деньги),
-					    отказ — обеим сторонам, чтобы было понятно, почему отмена */}
+					{/* Оплата: статус эскроу и завершённых выплат */}
 					{order.payment?.status === 'succeeded' && (
 						<p className='text-xs text-green-600 flex items-center gap-1 mt-1'>
 							<Check className='w-3 h-3' />
 							{role === 'freelancer'
-								? `Оплачено, вам зачислено ${formatRub(order.payment.amount - order.payment.fee)}`
-								: `Оплачено ${formatRub(order.payment.amount)}`}
+								? order.status === 'completed'
+									? `Заказ завершён, вам зачислено ${formatRub(order.payment.amount - order.payment.fee)}`
+									: `Оплачено заказчиком (${formatRub(order.payment.amount - order.payment.fee)} в холде платформы)`
+								: order.status === 'completed'
+									? `Заказ завершён. Оплачено ${formatRub(order.payment.amount)}`
+									: `Оплачено ${formatRub(order.payment.amount)} (в холде платформы)`}
+						</p>
+					)}
+					{order.payment?.status === 'refunded' && (
+						<p className='text-xs text-blue-600 flex items-center gap-1 mt-1'>
+							<Wallet className='w-3 h-3 shrink-0' />
+							Средства возвращены заказчику
 						</p>
 					)}
 					{order.payment?.status === 'failed' && (
@@ -239,22 +248,13 @@ export function OrderCard({
 							</>
 						)}
 						{role === 'freelancer' && order.status === 'in_progress' && (
-							<>
-								<button
-									onClick={() => changeStatus('review')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 disabled:opacity-50 transition-colors font-medium'
-								>
-									Отправить на проверку
-								</button>
-								<button
-									onClick={() => changeStatus('completed')}
-									disabled={isPending}
-									className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50 transition-colors font-medium'
-								>
-									Завершить работу
-								</button>
-							</>
+							<button
+								onClick={() => changeStatus('review')}
+								disabled={isPending}
+								className='w-full sm:w-auto text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 disabled:opacity-50 transition-colors font-medium'
+							>
+								Отправить на проверку
+							</button>
 						)}
 						{role === 'freelancer' && order.status === 'revision' && (
 							<>
