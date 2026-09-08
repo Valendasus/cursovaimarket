@@ -419,7 +419,7 @@ export default function ServiceDetailPage() {
 												disabled={ordering}
 												className='flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-60'
 											>
-												{ordering ? 'Оформляем...' : 'Подтвердить заказ'}
+												{ordering ? 'Оформляем...' : 'Оформить заказ'}
 											</button>
 											<button
 												onClick={() => setShowOrderForm(false)}
