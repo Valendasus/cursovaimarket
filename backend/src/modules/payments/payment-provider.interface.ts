@@ -13,6 +13,8 @@ export interface ChargeRequest {
 	/** Кого списываем — для реального провайдера здесь будет токен карты */
 	payerId: string
 	description: string
+	/** Stable across retries; a live provider must use it as its idempotency key. */
+	idempotencyKey: string
 }
 
 export interface PayoutRequest {
@@ -21,6 +23,7 @@ export interface PayoutRequest {
 	amount: number
 	payeeId: string
 	description: string
+	idempotencyKey: string
 }
 
 export interface RefundRequest {
@@ -29,6 +32,7 @@ export interface RefundRequest {
 	amount: number
 	payerId: string
 	description: string
+	idempotencyKey: string
 }
 
 export interface ProviderResult {

@@ -1,5 +1,6 @@
 import { extractApiError } from '@/api/client'
 import type { CreateServicePayload, UpdateServicePayload } from '@/api/services'
+import StatePanel from '@/components/common/StatePanel'
 import {
 	createService,
 	deleteService,
@@ -115,7 +116,13 @@ export function ServicesTab({ freelancerId }: { freelancerId: string }) {
 	])
 	const [formError, setFormError] = useState('')
 
-	const { data: services = [], isLoading } = useQuery({
+	const {
+		data: services = [],
+		isLoading,
+		isError,
+		isFetching,
+		refetch,
+	} = useQuery({
 		queryKey: ['my-services', freelancerId],
 		queryFn: () => getMyServices(freelancerId),
 		enabled: !!freelancerId,
@@ -598,6 +605,14 @@ export function ServicesTab({ freelancerId }: { freelancerId: string }) {
 							/>
 						))}
 					</div>
+				) : isError ? (
+					<StatePanel
+						compact
+						title='Не удалось загрузить ваши услуги'
+						description='Созданные услуги не потеряны. Повторите запрос.'
+						onRetry={() => void refetch()}
+						retrying={isFetching}
+					/>
 				) : services.length === 0 ? (
 					<div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
 						<Briefcase className='w-12 h-12 opacity-20 mb-3' />

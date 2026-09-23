@@ -9,6 +9,7 @@ import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { validateAuthSecrets } from './common/env-validation'
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter'
+import { LimitedSocketIoAdapter } from './common/limited-socket-io.adapter'
 import { resolveUploadsRoot } from './common/uploads'
 
 async function bootstrap() {
@@ -20,6 +21,9 @@ async function bootstrap() {
 
 	// Graceful shutdown
 	app.enableShutdownHooks()
+
+	// Socket.IO packet size and heartbeat are configured after .env is loaded.
+	app.useWebSocketAdapter(new LimitedSocketIoAdapter(app))
 
 	// Security
 	app.use(

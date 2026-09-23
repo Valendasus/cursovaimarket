@@ -97,15 +97,17 @@ export function InlineChatContent({
 		const trimmed = input.trim()
 		if (!canSend || sending || sendBlocked) return
 		setSending(true)
-		setInput('')
 		try {
 			setTyping(false)
 			await sendMessage({
 				content: trimmed || undefined,
 				file: selectedFile ?? undefined,
 			})
+			setInput('')
 			setSelectedFile(null)
 			setFileError('')
+		} catch {
+			setFileError('Не удалось загрузить файл или отправить сообщение')
 		} finally {
 			setSending(false)
 			inputRef.current?.focus()

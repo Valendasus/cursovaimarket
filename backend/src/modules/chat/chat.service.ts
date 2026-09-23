@@ -125,33 +125,59 @@ export class ChatService {
 			type?: string | null
 			size?: number | null
 		},
+		clientMessageId?: string | null,
 	) {
+		const normalizedClientMessageId = clientMessageId?.trim() || null
+		if (normalizedClientMessageId && normalizedClientMessageId.length > 64) {
+			throw new BadRequestException('Некорректный идентификатор сообщения')
+		}
 		let normalizedAttachment: string | null = null
 		if (attachment?.url) {
 			const normalized = this.s3Service.normalizeRef(attachment.url)
-			if (!normalized || !this.s3Service.isS3Ref(normalized)) {
+			const uploadPrefix = `messages/${conversationId}/${senderId}`
+			if (
+				!normalized ||
+				!this.s3Service.isS3Ref(normalized) ||
+				!this.s3Service.isRefWithinPrefix(normalized, uploadPrefix)
+			) {
 				throw new BadRequestException('Недопустимый файл вложения')
 			}
 			normalizedAttachment = normalized
 		}
-		const [msg] = await this.prisma.$transaction([
-			this.prisma.directMessage.create({
-				data: {
-					conversationId,
-					senderId,
-					content: content?.trim() || null,
-					attachmentUrl: normalizedAttachment ?? null,
-					attachmentName: attachment?.name ?? null,
-					attachmentType: attachment?.type ?? null,
-					attachmentSize: attachment?.size ?? null,
-				},
-				include: { sender: { select: USER_SELECT } },
-			}),
-			this.prisma.conversation.update({
+		const messageData = {
+			conversationId,
+			senderId,
+			clientMessageId: normalizedClientMessageId,
+			content: content?.trim() || null,
+			attachmentUrl: normalizedAttachment ?? null,
+			attachmentName: attachment?.name ?? null,
+			attachmentType: attachment?.type ?? null,
+			attachmentSize: attachment?.size ?? null,
+		}
+		const msg = await this.prisma.$transaction(async tx => {
+			const saved = normalizedClientMessageId
+				? await tx.directMessage.upsert({
+						where: {
+							conversationId_senderId_clientMessageId: {
+								conversationId,
+								senderId,
+								clientMessageId: normalizedClientMessageId,
+							},
+						},
+						create: messageData,
+						update: {},
+						include: { sender: { select: USER_SELECT } },
+					})
+				: await tx.directMessage.create({
+						data: messageData,
+						include: { sender: { select: USER_SELECT } },
+					})
+			await tx.conversation.update({
 				where: { id: conversationId },
 				data: { updatedAt: new Date() },
-			}),
-		])
+			})
+			return saved
+		})
 		return this.withSignedMessage(msg)
 	}
 

@@ -1,4 +1,5 @@
 import { getMyReviews, getReceivedReviews } from '@/api/reviews'
+import StatePanel from '@/components/common/StatePanel'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Star } from 'lucide-react'
@@ -26,19 +27,33 @@ export function ReviewsTab({ role }: { role: string }) {
 	const [page, setPage] = useState(1)
 	const limit = 10
 
-	const { data: myData, isLoading: myLoading } = useQuery({
+	const {
+		data: myData,
+		isLoading: myLoading,
+		isError: myError,
+		isFetching: myFetching,
+		refetch: refetchMy,
+	} = useQuery({
 		queryKey: ['my-reviews', page],
 		queryFn: () => getMyReviews(page, limit),
 		enabled: !isFreelancer,
 	})
 
-	const { data: receivedData, isLoading: receivedLoading } = useQuery({
+	const {
+		data: receivedData,
+		isLoading: receivedLoading,
+		isError: receivedError,
+		isFetching: receivedFetching,
+		refetch: refetchReceived,
+	} = useQuery({
 		queryKey: ['received-reviews', page],
 		queryFn: () => getReceivedReviews(page, limit),
 		enabled: isFreelancer,
 	})
 
 	const isLoading = isFreelancer ? receivedLoading : myLoading
+	const isError = isFreelancer ? receivedError : myError
+	const isFetching = isFreelancer ? receivedFetching : myFetching
 	const total = isFreelancer ? (receivedData?.total ?? 0) : (myData?.total ?? 0)
 	const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -49,6 +64,19 @@ export function ReviewsTab({ role }: { role: string }) {
 					<div key={i} className='h-20 bg-muted/50 rounded-xl animate-pulse' />
 				))}
 			</div>
+		)
+	}
+
+	if (isError) {
+		return (
+			<StatePanel
+				title='Не удалось загрузить отзывы'
+				description='Повторите запрос — опубликованные отзывы сохранятся.'
+				onRetry={() =>
+					void (isFreelancer ? refetchReceived() : refetchMy())
+				}
+				retrying={isFetching}
+			/>
 		)
 	}
 

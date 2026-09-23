@@ -1,4 +1,5 @@
 import { getFreelancerById, getServices } from '@/api/services'
+import StatePanel from '@/components/common/StatePanel'
 import ServiceCard from '@/features/services/ServiceCard'
 import { getInitials } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -32,7 +33,13 @@ export default function FreelancerPage() {
 		enabled: !!freelancerId,
 	})
 
-	const { data: servicesData, isLoading: loadingServices } = useQuery({
+	const {
+		data: servicesData,
+		isLoading: loadingServices,
+		isError: servicesError,
+		isFetching: servicesFetching,
+		refetch: refetchServices,
+	} = useQuery({
 		queryKey: ['freelancer-services', freelancerId],
 		queryFn: () => getServices({ freelancerId, limit: 100 }),
 		enabled: !!freelancerId,
@@ -56,19 +63,14 @@ export default function FreelancerPage() {
 
 	if (freelancerError) {
 		return (
-			<div className='min-h-screen flex items-center justify-center'>
-				<div className='text-center'>
-					<p className='text-muted-foreground mb-4'>
-						Не удалось загрузить профиль
-					</p>
-					<button
-						onClick={() => void refetchFreelancer()}
-						disabled={freelancerFetching}
-						className='inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors'
-					>
-						{freelancerFetching ? 'Обновляем...' : 'Попробовать снова'}
-					</button>
-				</div>
+			<div className='container-custom min-h-screen py-20'>
+				<StatePanel
+					title='Не удалось загрузить профиль'
+					description='Проверьте соединение и повторите попытку.'
+					onRetry={() => void refetchFreelancer()}
+					retrying={freelancerFetching}
+					link={{ label: 'Все услуги', to: '/services' }}
+				/>
 			</div>
 		)
 	}
@@ -236,6 +238,14 @@ export default function FreelancerPage() {
 									/>
 								))}
 							</div>
+						) : servicesError ? (
+							<StatePanel
+								compact
+								title='Не удалось загрузить услуги исполнителя'
+								description='Профиль доступен, но список услуг временно не загрузился.'
+								onRetry={() => void refetchServices()}
+								retrying={servicesFetching}
+							/>
 						) : freelancerServices.length === 0 ? (
 							<p className='text-muted-foreground'>
 								У этого исполнителя пока нет услуг

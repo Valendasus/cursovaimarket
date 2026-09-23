@@ -1,8 +1,13 @@
 import { PrismaService } from '@/prisma/prisma.service'
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Order, PaymentStatus, PayoutStatus } from '@prisma/client'
+import { Order, PaymentStatus, PayoutStatus, Prisma } from '@prisma/client'
 import { PaymentProvider } from './payment-provider.interface'
+
+export type PaymentOperationResult = 'SUCCEEDED' | 'FAILED' | 'PROCESSING'
+export type PayoutOperationResult = 'SENT' | 'FAILED' | 'PROCESSING'
+
+const STALE_PROCESSING_MS = 5 * 60 * 1000
 
 @Injectable()
 export class PaymentsService {
@@ -43,30 +48,61 @@ export class PaymentsService {
 	 * Списывает деньги с заказчика и депонирует их на счёте эскроу платформы.
 	 * Выплата исполнителю на этом этапе НЕ производится.
 	 *
-	 * Возвращает true, если деньги с заказчика успешно списаны.
+	 * Возвращает итог операции или PROCESSING, если тот же запрос уже выполняется.
 	 */
-	async charge(order: Order): Promise<boolean> {
+	async charge(order: Order): Promise<PaymentOperationResult> {
 		const amount = order.totalPrice
 		const fee = this.calculateFee(amount)
-
-		// upsert, а не create: повторное подтверждение не должно ронять запрос
-		// дублем по уникальному orderId
-		const payment = await this.prisma.payment.upsert({
+		let payment = await this.prisma.payment.findUnique({
 			where: { orderId: order.id },
-			create: {
-				orderId: order.id,
-				amount,
-				fee,
-				status: PaymentStatus.PENDING,
-			},
-			update: { amount, fee, status: PaymentStatus.PENDING },
 		})
+
+		if (payment?.status === PaymentStatus.SUCCEEDED) return 'SUCCEEDED'
+		if (payment?.status === PaymentStatus.REFUNDED) return 'FAILED'
+
+		if (!payment) {
+			try {
+				payment = await this.prisma.payment.create({
+					data: {
+						orderId: order.id,
+						amount,
+						fee,
+						status: PaymentStatus.PENDING,
+					},
+				})
+			} catch (error) {
+				if (this.isUniqueConflict(error)) return 'PROCESSING'
+				throw error
+			}
+		} else {
+			const stalePending =
+				payment.status === PaymentStatus.PENDING &&
+				payment.updatedAt.getTime() < Date.now() - STALE_PROCESSING_MS
+			if (payment.status === PaymentStatus.PENDING && !stalePending) {
+				return 'PROCESSING'
+			}
+			const claimed = await this.prisma.payment.updateMany({
+				where: {
+					id: payment.id,
+					status: payment.status,
+					updatedAt: payment.updatedAt,
+				},
+				data: {
+					amount,
+					fee,
+					status: PaymentStatus.PENDING,
+					failureReason: null,
+				},
+			})
+			if (claimed.count !== 1) return 'PROCESSING'
+		}
 
 		const charge = await this.provider.charge({
 			orderId: order.id,
 			amount,
 			payerId: order.studentId,
 			description: `Оплата заказа ${order.id}`,
+			idempotencyKey: `order:${order.id}:charge`,
 		})
 
 		if (!charge.success) {
@@ -81,7 +117,7 @@ export class PaymentsService {
 			this.logger.warn(
 				`Списание по заказу ${order.id} не прошло: ${charge.failureReason}`,
 			)
-			return false
+			return 'FAILED'
 		}
 
 		await this.prisma.payment.update({
@@ -94,7 +130,7 @@ export class PaymentsService {
 			},
 		})
 
-		return true
+		return 'SUCCEEDED'
 	}
 
 	/**
@@ -104,7 +140,7 @@ export class PaymentsService {
 	 * Выплата уходит ТОЛЬКО если платёж заказчика в статусе SUCCEEDED
 	 * и выплата ещё не была отправлена ранее (идемпотентность).
 	 */
-	async sendPayout(order: Order): Promise<boolean> {
+	async sendPayout(order: Order): Promise<PayoutOperationResult> {
 		const payment = await this.prisma.payment.findUnique({
 			where: { orderId: order.id },
 		})
@@ -113,33 +149,58 @@ export class PaymentsService {
 			this.logger.error(
 				`Нельзя выплатить по заказу ${order.id}: платёж заказчика не подтверждён`,
 			)
-			return false
+			return 'FAILED'
 		}
 
 		const existingPayout = await this.prisma.payout.findUnique({
 			where: { orderId: order.id },
 		})
-		if (existingPayout && existingPayout.status === PayoutStatus.SENT) {
-			return true
-		}
+		if (existingPayout?.status === PayoutStatus.SENT) return 'SENT'
 
 		const payoutAmount = payment.amount - payment.fee
 
-		const payout = await this.prisma.payout.upsert({
-			where: { orderId: order.id },
-			create: {
-				orderId: order.id,
-				amount: payoutAmount,
-				status: PayoutStatus.PENDING,
-			},
-			update: { amount: payoutAmount, status: PayoutStatus.PENDING },
-		})
+		let payout = existingPayout
+		if (!payout) {
+			try {
+				payout = await this.prisma.payout.create({
+					data: {
+						orderId: order.id,
+						amount: payoutAmount,
+						status: PayoutStatus.PENDING,
+					},
+				})
+			} catch (error) {
+				if (this.isUniqueConflict(error)) return 'PROCESSING'
+				throw error
+			}
+		} else {
+			const stalePending =
+				payout.status === PayoutStatus.PENDING &&
+				payout.updatedAt.getTime() < Date.now() - STALE_PROCESSING_MS
+			if (payout.status === PayoutStatus.PENDING && !stalePending) {
+				return 'PROCESSING'
+			}
+			const claimed = await this.prisma.payout.updateMany({
+				where: {
+					id: payout.id,
+					status: payout.status,
+					updatedAt: payout.updatedAt,
+				},
+				data: {
+					amount: payoutAmount,
+					status: PayoutStatus.PENDING,
+					failureReason: null,
+				},
+			})
+			if (claimed.count !== 1) return 'PROCESSING'
+		}
 
 		const result = await this.provider.payout({
 			orderId: order.id,
 			amount: payoutAmount,
 			payeeId: order.freelancerId,
 			description: `Выплата по заказу ${order.id}`,
+			idempotencyKey: `order:${order.id}:payout`,
 		})
 
 		await this.prisma.payout.update({
@@ -153,8 +214,7 @@ export class PaymentsService {
 					}
 				: {
 						status: PayoutStatus.FAILED,
-						failureReason:
-							result.failureReason ?? 'Провайдер отклонил выплату',
+						failureReason: result.failureReason ?? 'Провайдер отклонил выплату',
 					},
 		})
 
@@ -162,10 +222,10 @@ export class PaymentsService {
 			this.logger.error(
 				`Выплата по заказу ${order.id} не прошла: ${result.failureReason}. Деньги заказчика в эскроу — требуется ручной разбор.`,
 			)
-			return false
+			return 'FAILED'
 		}
 
-		return true
+		return 'SENT'
 	}
 
 	/**
@@ -198,6 +258,7 @@ export class PaymentsService {
 			amount: payment.amount,
 			payerId: order.studentId,
 			description: `Возврат средств по заказу ${order.id}`,
+			idempotencyKey: `order:${order.id}:refund`,
 		})
 
 		if (result.success) {
@@ -222,7 +283,20 @@ export class PaymentsService {
 	 */
 	async chargeAndPayout(order: Order): Promise<boolean> {
 		const charged = await this.charge(order)
-		if (!charged) return false
-		return this.sendPayout(order)
+		if (charged !== 'SUCCEEDED') return false
+		return (await this.sendPayout(order)) === 'SENT'
+	}
+
+	private isUniqueConflict(error: unknown): boolean {
+		return (
+			(error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === 'P2002') ||
+			Boolean(
+				error &&
+				typeof error === 'object' &&
+				'code' in error &&
+				error.code === 'P2002',
+			)
+		)
 	}
 }

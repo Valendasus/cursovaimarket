@@ -1,6 +1,8 @@
 import PageLoader from '@/components/common/PageLoader'
 import RootLayout from '@/components/layout/RootLayout'
+import RouteErrorPage from '@/pages/RouteErrorPage'
 import { useAuthStore } from '@/store/authStore'
+import { SERVICE_CATEGORIES, type ServiceCategory } from '@/types'
 import {
 	createRootRoute,
 	createRoute,
@@ -18,7 +20,9 @@ const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const VerifyEmailPage = lazy(() => import('@/pages/VerifyEmailPage'))
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
+const InfoPage = lazy(() => import('@/pages/InfoPage'))
 
 const wrap = (Component: React.ComponentType) => () => (
 	<Suspense fallback={<PageLoader />}>
@@ -26,7 +30,10 @@ const wrap = (Component: React.ComponentType) => () => (
 	</Suspense>
 )
 
-const rootRoute = createRootRoute({ component: RootLayout })
+const rootRoute = createRootRoute({
+	component: RootLayout,
+	errorComponent: RouteErrorPage,
+})
 
 const indexRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -36,6 +43,13 @@ const indexRoute = createRoute({
 const servicesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/services',
+	validateSearch: (search: Record<string, unknown>): { category?: ServiceCategory } => ({
+		category:
+			typeof search.category === 'string' &&
+			Object.hasOwn(SERVICE_CATEGORIES, search.category)
+				? (search.category as ServiceCategory)
+				: undefined,
+	}),
 	component: wrap(ServicesPage),
 })
 const serviceDetailRoute = createRoute({
@@ -74,6 +88,44 @@ const verifyEmailRoute = createRoute({
 	}),
 	component: wrap(VerifyEmailPage),
 })
+const resetPasswordRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/reset-password',
+	validateSearch: (s: Record<string, unknown>): { token?: string } => ({
+		token: typeof s.token === 'string' ? s.token : undefined,
+	}),
+	component: wrap(ResetPasswordPage),
+})
+const privacyRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/privacy',
+	component: wrap(() => <InfoPage kind='privacy' />),
+})
+const termsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/terms',
+	component: wrap(() => <InfoPage kind='terms' />),
+})
+const rulesRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/rules',
+	component: wrap(() => <InfoPage kind='rules' />),
+})
+const contactsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/contacts',
+	component: wrap(() => <InfoPage kind='contacts' />),
+})
+const supportRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/support',
+	component: wrap(() => <InfoPage kind='support' />),
+})
+const disputesRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/disputes',
+	component: wrap(() => <InfoPage kind='disputes' />),
+})
 const dashboardRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/dashboard',
@@ -108,14 +160,21 @@ const routeTree = rootRoute.addChildren([
 	loginRoute,
 	registerRoute,
 	verifyEmailRoute,
+	resetPasswordRoute,
+	privacyRoute,
+	termsRoute,
+	rulesRoute,
+	contactsRoute,
+	supportRoute,
+	disputesRoute,
 	dashboardRoute,
 	notFoundRoute,
 ])
 
-export const router = createRouter({ 
+export const router = createRouter({
 	routeTree,
-	scrollRestoration: true, 
-	defaultPreload: 'intent' 
+	scrollRestoration: true,
+	defaultPreload: 'intent',
 })
 
 declare module '@tanstack/react-router' {

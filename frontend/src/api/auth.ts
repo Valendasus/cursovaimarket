@@ -152,3 +152,18 @@ export async function resendVerificationApi(email: string) {
 	)
 	return data
 }
+
+export async function requestPasswordChangeApi() {
+	const { data } = await apiClient.post<{ message: string }>(
+		'/v1/auth/password-change/request',
+	)
+	return data
+}
+
+export async function resetPasswordApi(token: string, password: string) {
+	const { data } = await apiClient.post<{ message: string }>(
+		'/v1/auth/password-change/reset',
+		{ token, password },
+	)
+	return data
+}

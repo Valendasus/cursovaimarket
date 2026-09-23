@@ -6,7 +6,7 @@ import {
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common'
-import { UserRole } from '@prisma/client'
+import { Prisma, UserRole } from '@prisma/client'
 import {
 	SwitchRoleDto,
 	UpdateProfileDto,
@@ -51,11 +51,18 @@ export class UsersService {
 		return this.findPublicById(id)
 	}
 
-	async findFreelancers(page = 1, limit = 12) {
+	async findFreelancers(page = 1, limit = 12, rawSearch?: string) {
 		const skip = (page - 1) * limit
+		const search = rawSearch?.trim()
+		const where: Prisma.UserWhereInput = {
+			role: UserRole.FREELANCER,
+			...(search && {
+				name: { contains: search, mode: 'insensitive' },
+			}),
+		}
 		const [data, total] = await Promise.all([
 			this.prisma.user.findMany({
-				where: { role: UserRole.FREELANCER },
+				where,
 				select: {
 					id: true,
 					name: true,
@@ -69,7 +76,7 @@ export class UsersService {
 				take: limit,
 				orderBy: { createdAt: 'desc' },
 			}),
-			this.prisma.user.count({ where: { role: UserRole.FREELANCER } }),
+			this.prisma.user.count({ where }),
 		])
 
 		const signed = await Promise.all(
@@ -149,7 +156,7 @@ export class UsersService {
 				include: { profile: true },
 			}),
 			this.prisma.service.updateMany({
-				where: { freelancerId: userId },
+				where: { freelancerId: userId, deletedAt: null },
 				data: { isActive: dto.role === UserRole.FREELANCER },
 			}),
 		])

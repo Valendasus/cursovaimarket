@@ -1,6 +1,7 @@
 import { extractApiError } from '@/api/client'
 import { getMyOrders } from '@/api/orders'
 import { createReview, getServiceReviews } from '@/api/reviews'
+import StatePanel from '@/components/common/StatePanel'
 import type { Service } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Star } from 'lucide-react'
@@ -54,13 +55,19 @@ export default function ReviewsSection({
 	const [submitted, setSubmitted] = useState(false)
 	const [limit, setLimit] = useState(10)
 
-	const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
+	const {
+		data: reviewsData,
+		isLoading: reviewsLoading,
+		isError: reviewsError,
+		isFetching: reviewsFetching,
+		refetch: refetchReviews,
+	} = useQuery({
 		queryKey: ['reviews', serviceId, limit],
 		queryFn: () => getServiceReviews(serviceId, 1, limit),
 	})
 
 	// Find completed orders for this service (to get orderId for review)
-	const { data: myOrders = [] } = useQuery({
+	const { data: myOrders = [], isError: ordersError } = useQuery({
 		queryKey: ['my-orders'],
 		queryFn: getMyOrders,
 		enabled: isAuthenticated && isStudent && !isOwnService,
@@ -149,6 +156,13 @@ export default function ReviewsSection({
 				</div>
 			)}
 
+			{ordersError && isAuthenticated && isStudent && !isOwnService && (
+				<p className='mb-5 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive'>
+					Не удалось проверить завершённые заказы. Форма отзыва появится после
+					восстановления соединения.
+				</p>
+			)}
+
 			{/* Reviews list */}
 			{reviewsLoading && reviews.length === 0 ? (
 				<div className='space-y-3'>
@@ -159,6 +173,14 @@ export default function ReviewsSection({
 						/>
 					))}
 				</div>
+			) : reviewsError ? (
+				<StatePanel
+					compact
+					title='Не удалось загрузить отзывы'
+					description='Остальная информация об услуге доступна.'
+					onRetry={() => void refetchReviews()}
+					retrying={reviewsFetching}
+				/>
 			) : reviews.length === 0 ? (
 				<p className='text-sm text-muted-foreground'>Отзывов пока нет</p>
 			) : (

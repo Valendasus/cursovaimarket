@@ -23,3 +23,9 @@ backend/.env.*
 
 # Uploads — файлы живут в S3, в git не нужны
 backend/uploads/
+
+# Test reports
+coverage/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/

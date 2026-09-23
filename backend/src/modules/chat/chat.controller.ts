@@ -121,18 +121,15 @@ export class ChatController {
 						}
 					})()
 				: undefined,
+			body.clientMessageId,
 		)
-		const payload = {
-			...message,
-			clientMessageId: body.clientMessageId ?? null,
-		}
 		this.chatGateway.emitNewMessage(
 			conversationId,
 			conv.userAId,
 			conv.userBId,
-			payload,
+			message,
 		)
-		return payload
+		return message
 	}
 
 	/** POST /chat/conversations/:id/files — upload attachment */
@@ -177,7 +174,7 @@ export class ChatController {
 		const ext = extname(file.originalname).toLowerCase()
 		const stamp = Date.now().toString(36)
 		const rand = Math.random().toString(36).slice(2, 8)
-		const key = `messages/msg-${stamp}-${rand}${ext}`
+		const key = `messages/${conversationId}/${userId}/msg-${stamp}-${rand}${ext}`
 		const s3Ref = await this.s3Service.uploadBuffer(
 			key,
 			file.buffer,

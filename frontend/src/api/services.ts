@@ -202,9 +202,10 @@ export async function getFreelancerById(
 export async function getFreelancers(
 	page = 1,
 	limit = 4,
+	search?: string,
 ): Promise<PaginatedResponse<FreelancerProfile>> {
 	const { data } = await apiClient.get('/v1/users/freelancers', {
-		params: { page, limit },
+		params: { page, limit, ...(search ? { search } : {}) },
 	})
 	const mapped = (data.data ?? []).map(mapFreelancer)
 	return {

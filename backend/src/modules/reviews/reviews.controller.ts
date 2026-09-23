@@ -1,5 +1,7 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator'
+import { Roles } from '@/common/decorators/roles.decorator'
 import { EmailVerifiedGuard } from '@/common/guards/email-verified.guard'
+import { RolesGuard } from '@/common/guards/roles.guard'
 import {
 	Body,
 	Controller,
@@ -13,6 +15,7 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { UserRole } from '@prisma/client'
 import { CreateReviewDto } from './dto/review.dto'
 import { ReviewsService } from './reviews.service'
 
@@ -22,11 +25,12 @@ export class ReviewsController {
 	constructor(private readonly reviewsService: ReviewsService) {}
 
 	@Post()
-	@UseGuards(AuthGuard('jwt'), EmailVerifiedGuard)
+	@UseGuards(AuthGuard('jwt'), RolesGuard, EmailVerifiedGuard)
+	@Roles(UserRole.STUDENT)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Оставить отзыв (email подтверждён)' })
-	create(@CurrentUser('id') userId: string, @Body() dto: CreateReviewDto) {
-		return this.reviewsService.create(userId, dto)
+	create(@CurrentUser() user: any, @Body() dto: CreateReviewDto) {
+		return this.reviewsService.create(user.id, user.role, dto)
 	}
 
 	@Get('my')

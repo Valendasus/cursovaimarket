@@ -51,8 +51,9 @@ export class UsersController {
 	getFreelancers(
 		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
 		@Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit: number,
+		@Query('search') search?: string,
 	) {
-		return this.usersService.findFreelancers(page, limit)
+		return this.usersService.findFreelancers(page, limit, search)
 	}
 
 	@Get('me')

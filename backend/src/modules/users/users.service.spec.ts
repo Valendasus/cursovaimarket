@@ -190,6 +190,23 @@ describe('UsersService', () => {
 			expect(callArgs.select.email).toBeUndefined()
 			expect(callArgs.select.password).toBeUndefined()
 		})
+
+		it('применяет поиск по имени до пагинации и считает total с тем же фильтром', async () => {
+			const [service, prisma] = build()
+			prisma.user.findMany.mockResolvedValue([])
+			prisma.user.count.mockResolvedValue(0)
+
+			await service.findFreelancers(2, 10, 'Пётр')
+
+			const expectedWhere = {
+				role: UserRole.FREELANCER,
+				name: { contains: 'Пётр', mode: 'insensitive' },
+			}
+			expect(prisma.user.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({ where: expectedWhere, skip: 10, take: 10 }),
+			)
+			expect(prisma.user.count).toHaveBeenCalledWith({ where: expectedWhere })
+		})
 	})
 
 	describe('updateMe', () => {
@@ -284,6 +301,10 @@ describe('UsersService', () => {
 			expect(result.role).toBe(UserRole.FREELANCER)
 			expect((result as Record<string, unknown>).password).toBeUndefined()
 			expect(prisma.$transaction).toHaveBeenCalled()
+			expect(prisma.service.updateMany).toHaveBeenCalledWith({
+				where: { freelancerId: 'user_123', deletedAt: null },
+				data: { isActive: true },
+			})
 		})
 
 		it('запрещает переключаться на ту же самую роль', async () => {

@@ -22,9 +22,12 @@ const footerLinks = {
 	support: {
 		title: 'Поддержка',
 		links: [
-			{ label: 'Правила', href: '/terms' },
+			{ label: 'Центр поддержки', href: '/support' },
+			{ label: 'Контакты', href: '/contacts' },
+			{ label: 'Правила сервиса', href: '/rules' },
+			{ label: 'Правила споров', href: '/disputes' },
+			{ label: 'Пользовательское соглашение', href: '/terms' },
 			{ label: 'Конфиденциальность', href: '/privacy' },
-			{ label: 'Связаться', href: 'mailto:support@cursovaimarket.ru' },
 		],
 	},
 }
@@ -45,8 +48,8 @@ export default function Footer() {
 							</span>
 						</Link>
 						<p className='text-sm text-muted-foreground leading-relaxed max-w-[220px]'>
-							Платформа для заказа качественных курсовых работ у проверенных
-							исполнителей.
+							Платформа для поиска исполнителей и заказа учебных работ по
+							заданным условиям.
 						</p>
 						<div className='flex items-center gap-3 mt-6'>
 							<a

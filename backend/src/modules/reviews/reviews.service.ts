@@ -8,7 +8,7 @@ import {
 	Injectable,
 	NotFoundException,
 } from '@nestjs/common'
-import { OrderStatus } from '@prisma/client'
+import { OrderStatus, UserRole } from '@prisma/client'
 import { CreateReviewDto } from './dto/review.dto'
 
 @Injectable()
@@ -18,7 +18,10 @@ export class ReviewsService {
 		private s3Service: S3Service,
 	) {}
 
-	async create(authorId: string, dto: CreateReviewDto) {
+	async create(authorId: string, role: UserRole, dto: CreateReviewDto) {
+		if (role !== UserRole.STUDENT) {
+			throw new ForbiddenException('Текущая роль не позволяет оставить отзыв')
+		}
 		const order = await this.prisma.order.findUnique({
 			where: { id: dto.orderId },
 			include: { review: true },

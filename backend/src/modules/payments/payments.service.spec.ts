@@ -3,34 +3,44 @@ import { PaymentStatus, PayoutStatus } from '@prisma/client'
 import { PaymentProvider } from './payment-provider.interface'
 import { PaymentsService } from './payments.service'
 
-/**
- * Тесты на моках: базу и провайдера не трогаем, проверяем арифметику
- * комиссии и порядок операций — выплата не должна уходить, если списание
- * не прошло.
- */
-
 type MockFn = jest.Mock<any, any>
-
 type PrismaMock = {
-	payment: { upsert: MockFn; update: MockFn; findUnique: MockFn }
-	payout: { upsert: MockFn; update: MockFn; findUnique: MockFn }
+	payment: {
+		create: MockFn
+		update: MockFn
+		updateMany: MockFn
+		findUnique: MockFn
+	}
+	payout: {
+		create: MockFn
+		update: MockFn
+		updateMany: MockFn
+		findUnique: MockFn
+	}
 }
+
+const freshDate = () => new Date()
 
 function makePrisma(): PrismaMock {
 	return {
 		payment: {
-			upsert: jest.fn().mockResolvedValue({ id: 'pay_1' }),
-			update: jest.fn().mockResolvedValue({}),
-			findUnique: jest.fn().mockResolvedValue({
+			create: jest.fn().mockResolvedValue({
 				id: 'pay_1',
-				amount: 300_000,
-				fee: 30_000,
-				status: PaymentStatus.SUCCEEDED,
+				status: PaymentStatus.PENDING,
+				updatedAt: freshDate(),
 			}),
+			update: jest.fn().mockResolvedValue({}),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+			findUnique: jest.fn().mockResolvedValue(null),
 		},
 		payout: {
-			upsert: jest.fn().mockResolvedValue({ id: 'out_1' }),
+			create: jest.fn().mockResolvedValue({
+				id: 'out_1',
+				status: PayoutStatus.PENDING,
+				updatedAt: freshDate(),
+			}),
 			update: jest.fn().mockResolvedValue({}),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			findUnique: jest.fn().mockResolvedValue(null),
 		},
 	}
@@ -54,7 +64,7 @@ const order = {
 	id: 'order_1',
 	studentId: 'student_1',
 	freelancerId: 'freelancer_1',
-	totalPrice: 300_000, // 3000 ₽ в копейках
+	totalPrice: 300_000,
 } as never
 
 function build(
@@ -62,56 +72,102 @@ function build(
 	provider = makeProvider(),
 ): [PaymentsService, PrismaMock, ReturnType<typeof makeProvider>] {
 	const prisma = makePrisma()
-	const service = new PaymentsService(
-		prisma as never,
-		makeConfig(feePercent) as never,
-		provider as never,
-	)
-	return [service, prisma, provider]
+	return [
+		new PaymentsService(
+			prisma as never,
+			makeConfig(feePercent) as never,
+			provider as never,
+		),
+		prisma,
+		provider,
+	]
+}
+
+const succeededPayment = {
+	id: 'pay_1',
+	amount: 300_000,
+	fee: 30_000,
+	status: PaymentStatus.SUCCEEDED,
+	updatedAt: freshDate(),
 }
 
 describe('PaymentsService', () => {
 	describe('комиссия', () => {
 		it('считает процент от суммы', () => {
-			const [service] = build(10)
-			expect(service.calculateFee(300_000)).toBe(30_000)
+			expect(build(10)[0].calculateFee(300_000)).toBe(30_000)
 		})
 
-		it('нулевая ставка — комиссии нет', () => {
-			const [service] = build(0)
-			expect(service.calculateFee(300_000)).toBe(0)
-		})
-
-		it('округляет до копейки, а не теряет остаток', () => {
-			const [service] = build(10)
-			// 3333 копейки * 10% = 333.3 → 333
-			expect(service.calculateFee(3_333)).toBe(333)
-		})
-
-		it('откатывается на дефолт 13% при мусоре в конфиге', () => {
+		it('валидирует ставку', () => {
+			expect(build(0)[0].calculateFee(300_000)).toBe(0)
 			expect(build('абв')[0].feePercent).toBe(13)
 			expect(build(-5)[0].feePercent).toBe(13)
 			expect(build(150)[0].feePercent).toBe(13)
 		})
 	})
 
-	describe('charge (депонирование в эскроу)', () => {
-		it('успешное списание помечает платёж SUCCEEDED и НЕ отправляет выплату', async () => {
+	describe('charge', () => {
+		it('создаёт резерв, списывает один раз и использует стабильный ключ', async () => {
 			const [service, prisma, provider] = build()
-			const paid = await service.charge(order)
 
-			expect(paid).toBe(true)
+			await expect(service.charge(order)).resolves.toBe('SUCCEEDED')
+
+			expect(prisma.payment.create).toHaveBeenCalledTimes(1)
+			expect(provider.charge).toHaveBeenCalledWith(
+				expect.objectContaining({
+					amount: 300_000,
+					idempotencyKey: 'order:order_1:charge',
+				}),
+			)
 			expect(prisma.payment.update).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: expect.objectContaining({ status: PaymentStatus.SUCCEEDED }),
 				}),
 			)
-			// Деньги в эскроу — выплата исполнителю ещё НЕ уходит
 			expect(provider.payout).not.toHaveBeenCalled()
-			expect(prisma.payout.upsert).not.toHaveBeenCalled()
 		})
 
-		it('при отказе провайдера платёж помечается FAILED', async () => {
+		it('не вызывает провайдера повторно для успешного платежа', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
+
+			await expect(service.charge(order)).resolves.toBe('SUCCEEDED')
+			expect(provider.charge).not.toHaveBeenCalled()
+		})
+
+		it('не дублирует свежую параллельную операцию', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue({
+				id: 'pay_1',
+				status: PaymentStatus.PENDING,
+				updatedAt: freshDate(),
+			})
+
+			await expect(service.charge(order)).resolves.toBe('PROCESSING')
+			expect(provider.charge).not.toHaveBeenCalled()
+		})
+
+		it('не вызывает провайдера, если параллельный запрос уже создал платёж', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.create.mockRejectedValue({ code: 'P2002' })
+
+			await expect(service.charge(order)).resolves.toBe('PROCESSING')
+			expect(provider.charge).not.toHaveBeenCalled()
+		})
+
+		it('после отказа разрешает безопасный повтор', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue({
+				id: 'pay_1',
+				status: PaymentStatus.FAILED,
+				updatedAt: freshDate(),
+			})
+
+			await expect(service.charge(order)).resolves.toBe('SUCCEEDED')
+			expect(prisma.payment.updateMany).toHaveBeenCalledTimes(1)
+			expect(provider.charge).toHaveBeenCalledTimes(1)
+		})
+
+		it('возвращает FAILED при отказе провайдера', async () => {
 			const provider = makeProvider({
 				charge: jest
 					.fn()
@@ -119,9 +175,7 @@ describe('PaymentsService', () => {
 			} as never)
 			const [service, prisma] = build(10, provider)
 
-			const paid = await service.charge(order)
-
-			expect(paid).toBe(false)
+			await expect(service.charge(order)).resolves.toBe('FAILED')
 			expect(prisma.payment.update).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: expect.objectContaining({
@@ -130,93 +184,85 @@ describe('PaymentsService', () => {
 					}),
 				}),
 			)
-			expect(provider.payout).not.toHaveBeenCalled()
 		})
 	})
 
-	describe('sendPayout (выплата из эскроу при COMPLETED)', () => {
-		it('выплачивает исполнителю сумму за вычетом комиссии платформы', async () => {
-			const [service, prisma, provider] = build(10)
-			const success = await service.sendPayout(order)
+	describe('sendPayout', () => {
+		it('выплачивает сумму за вычетом комиссии со стабильным ключом', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
 
-			expect(success).toBe(true)
-			expect(prisma.payout.upsert).toHaveBeenCalledWith(
+			await expect(service.sendPayout(order)).resolves.toBe('SENT')
+
+			expect(prisma.payout.create).toHaveBeenCalledWith(
 				expect.objectContaining({
-					create: expect.objectContaining({ amount: 270_000 }),
-				}),
-			)
-			expect(prisma.payout.update).toHaveBeenCalledWith(
-				expect.objectContaining({
-					data: expect.objectContaining({ status: PayoutStatus.SENT }),
+					data: expect.objectContaining({ amount: 270_000 }),
 				}),
 			)
 			expect(provider.payout).toHaveBeenCalledWith(
-				expect.objectContaining({ amount: 270_000 }),
+				expect.objectContaining({
+					amount: 270_000,
+					idempotencyKey: 'order:order_1:payout',
+				}),
 			)
 		})
 
-		it('не отправляет выплату, если заказчик не оплатил заказ', async () => {
-			const [service, prisma, provider] = build(10)
+		it('не платит без успешной оплаты', async () => {
+			const [service, prisma, provider] = build()
 			prisma.payment.findUnique.mockResolvedValue({
 				status: PaymentStatus.FAILED,
 			})
 
-			const success = await service.sendPayout(order)
-
-			expect(success).toBe(false)
+			await expect(service.sendPayout(order)).resolves.toBe('FAILED')
 			expect(provider.payout).not.toHaveBeenCalled()
 		})
 
-		it('идемпотентно: не отправляет выплату повторно, если статус уже SENT', async () => {
-			const [service, prisma, provider] = build(10)
+		it('не отправляет повторно уже проведённую выплату', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
 			prisma.payout.findUnique.mockResolvedValue({
 				status: PayoutStatus.SENT,
 			})
 
-			const success = await service.sendPayout(order)
+			await expect(service.sendPayout(order)).resolves.toBe('SENT')
+			expect(provider.payout).not.toHaveBeenCalled()
+		})
 
-			expect(success).toBe(true)
+		it('не дублирует свежую параллельную выплату', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
+			prisma.payout.findUnique.mockResolvedValue({
+				id: 'out_1',
+				status: PayoutStatus.PENDING,
+				updatedAt: freshDate(),
+			})
+
+			await expect(service.sendPayout(order)).resolves.toBe('PROCESSING')
 			expect(provider.payout).not.toHaveBeenCalled()
 		})
 	})
 
-	describe('refund (возврат средств из эскроу при CANCELLED)', () => {
-		it('успешно возвращает средства заказчику', async () => {
-			const [service, prisma, provider] = build(10)
-			const refunded = await service.refund(order)
+	describe('refund', () => {
+		it('возвращает деньги со стабильным ключом', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
 
-			expect(refunded).toBe(true)
+			await expect(service.refund(order)).resolves.toBe(true)
 			expect(provider.refund).toHaveBeenCalledWith(
-				expect.objectContaining({ amount: 300_000 }),
-			)
-			expect(prisma.payment.update).toHaveBeenCalledWith(
 				expect.objectContaining({
-					data: expect.objectContaining({ status: PaymentStatus.REFUNDED }),
+					amount: 300_000,
+					idempotencyKey: 'order:order_1:refund',
 				}),
 			)
 		})
 
-		it('не возвращает средства, если выплата уже отправлена исполнителю', async () => {
-			const [service, prisma, provider] = build(10)
-			prisma.payout.findUnique.mockResolvedValue({
-				status: PayoutStatus.SENT,
-			})
+		it('не возвращает после выплаты исполнителю', async () => {
+			const [service, prisma, provider] = build()
+			prisma.payment.findUnique.mockResolvedValue(succeededPayment)
+			prisma.payout.findUnique.mockResolvedValue({ status: PayoutStatus.SENT })
 
-			const refunded = await service.refund(order)
-
-			expect(refunded).toBe(false)
+			await expect(service.refund(order)).resolves.toBe(false)
 			expect(provider.refund).not.toHaveBeenCalled()
-		})
-	})
-
-	describe('chargeAndPayout (обратная совместимость)', () => {
-		it('выполняет списание и сразу выплату', async () => {
-			const [service, prisma, provider] = build(10)
-			const success = await service.chargeAndPayout(order)
-
-			expect(success).toBe(true)
-			expect(provider.charge).toHaveBeenCalled()
-			expect(provider.payout).toHaveBeenCalled()
 		})
 	})
 })

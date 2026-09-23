@@ -1,4 +1,5 @@
 import {
+	requestPasswordChangeApi,
 	switchRoleApi,
 	updateMeApi,
 	updateProfileApi,
@@ -11,7 +12,7 @@ import { SERVICE_CATEGORIES } from '@/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { motion, useAnimation } from 'framer-motion'
-import { Check } from 'lucide-react'
+import { Check, KeyRound, Mail } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 const AVATAR_BASE_URL =
@@ -53,6 +54,9 @@ export function SettingsTab() {
 	const [saving, setSaving] = useState(false)
 	const [saved, setSaved] = useState(false)
 	const [error, setError] = useState('')
+	const [passwordEmailSending, setPasswordEmailSending] = useState(false)
+	const [passwordEmailSent, setPasswordEmailSent] = useState(false)
+	const [passwordEmailError, setPasswordEmailError] = useState('')
 	const fileInputRef = useRef<HTMLInputElement | null>(null)
 
 	// Role switching state
@@ -193,6 +197,19 @@ export function SettingsTab() {
 			setError(extractApiError(err, 'Не удалось сохранить изменения'))
 		} finally {
 			setSaving(false)
+		}
+	}
+
+	const handlePasswordChangeRequest = async () => {
+		setPasswordEmailSending(true)
+		setPasswordEmailError('')
+		try {
+			await requestPasswordChangeApi()
+			setPasswordEmailSent(true)
+		} catch (err: unknown) {
+			setPasswordEmailError(extractApiError(err, 'Не удалось отправить письмо'))
+		} finally {
+			setPasswordEmailSending(false)
 		}
 	}
 
@@ -414,6 +431,53 @@ export function SettingsTab() {
 					)}
 				</motion.button>
 			</form>
+
+			<div className='mt-8 pt-6 border-t border-border'>
+				<div className='flex items-center justify-between gap-4 mb-3'>
+					<div>
+						<h3 className='font-semibold text-foreground'>Пароль</h3>
+						<p className='text-xs text-muted-foreground mt-1'>
+							Безопасная смена через подтверждение по email
+						</p>
+					</div>
+					<KeyRound className='h-5 w-5 text-muted-foreground' />
+				</div>
+				<div className='rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm'>
+					<div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+						<div className='min-w-0'>
+							<p className='text-sm font-medium text-foreground flex items-center gap-2'>
+								<Mail className='h-4 w-4 text-primary' />
+								{user?.email}
+							</p>
+							<p className='text-xs text-muted-foreground mt-1'>
+								Мы пришлём одноразовую ссылку, действующую 1 час.
+							</p>
+						</div>
+						<button
+							type='button'
+							onClick={handlePasswordChangeRequest}
+							disabled={passwordEmailSending || passwordEmailSent}
+							className='shrink-0 px-4 py-2.5 rounded-xl border border-primary/30 bg-primary/10 text-primary text-sm font-medium hover:bg-primary/15 disabled:opacity-60 transition-colors'
+						>
+							{passwordEmailSending
+								? 'Отправляем...'
+								: passwordEmailSent
+									? 'Письмо отправлено'
+									: 'Сменить пароль'}
+						</button>
+					</div>
+					{passwordEmailSent && (
+						<p className='text-xs text-green-600 mt-3'>
+							Проверьте почту и перейдите по ссылке из письма.
+						</p>
+					)}
+					{passwordEmailError && (
+						<p className='text-xs text-destructive mt-3'>
+							{passwordEmailError}
+						</p>
+					)}
+				</div>
+			</div>
 
 			{/* Role switch section */}
 			<div className='mt-8 pt-6 border-t border-border'>

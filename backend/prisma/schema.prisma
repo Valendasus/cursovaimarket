@@ -42,10 +42,12 @@ enum ServiceLevel {
 enum OrderStatus {
   PENDING // создан, ждёт подтверждения исполнителя
   AWAITING_PAYMENT // исполнитель подтвердил, ждём оплаты заказчиком
+  PAYMENT_PROCESSING // платёжный провайдер обрабатывает списание
   ACCEPTED // @deprecated: старый статус «подтверждён+оплачен»; новый флоу его не создаёт
   IN_PROGRESS
   REVIEW
   REVISION
+  COMPLETING // заказчик принял работу, выполняется выплата
   COMPLETED
   CANCELLED
 }
@@ -66,6 +68,26 @@ enum PayoutStatus {
   FAILED // провайдер отказал в выплате
 }
 
+enum DeadlineExtensionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RefundRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RefundReason {
+  MISSED_DEADLINE
+  WORK_NOT_DELIVERED
+  QUALITY_ISSUE
+  REQUIREMENTS_NOT_MET
+  OTHER
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -84,16 +106,21 @@ model User {
   profile FreelancerProfile?
 
   // Relations
-  services           Service[]                @relation("FreelancerServices")
-  buyerOrders        Order[]                  @relation("BuyerOrders")
-  freelancerOrders   Order[]                  @relation("FreelancerOrders")
-  reviews            Review[]                 @relation("AuthorReviews")
-  chatMessages       ChatMessage[]
-  conversationsAsA   Conversation[]           @relation("ConversationA")
-  conversationsAsB   Conversation[]           @relation("ConversationB")
-  directMessages     DirectMessage[]
-  refreshSessions    RefreshSession[]
-  emailVerifications EmailVerificationToken[]
+  services            Service[]                  @relation("FreelancerServices")
+  buyerOrders         Order[]                    @relation("BuyerOrders")
+  freelancerOrders    Order[]                    @relation("FreelancerOrders")
+  reviews             Review[]                   @relation("AuthorReviews")
+  chatMessages        ChatMessage[]
+  conversationsAsA    Conversation[]             @relation("ConversationA")
+  conversationsAsB    Conversation[]             @relation("ConversationB")
+  directMessages      DirectMessage[]
+  refreshSessions     RefreshSession[]
+  emailVerifications  EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  refundRequests      RefundRequest[]            @relation("RefundRequester")
+  refundResolutions   RefundRequest[]            @relation("RefundResolver")
+  extensionRequests   DeadlineExtensionRequest[] @relation("ExtensionRequester")
+  extensionDecisions  DeadlineExtensionRequest[] @relation("ExtensionResolver")
 
   @@map("users")
 }
@@ -112,6 +139,22 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@map("email_verification_tokens")
+}
+
+// ─── Password reset tokens ────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique // only a SHA-256 digest is stored; the raw token exists in the email
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ─── Refresh sessions (revocable refresh tokens) ─────────────────────────────
@@ -166,6 +209,7 @@ model Service {
   ordersCount  Int             @default(0)
   isFeatured   Boolean         @default(false)
   isActive     Boolean         @default(true)
+  deletedAt    DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -211,16 +255,69 @@ model Order {
   confirmDeadline DateTime?
   confirmedAt     DateTime?
 
-  service    Service        @relation(fields: [serviceId], references: [id])
-  package    ServicePackage @relation(fields: [packageId], references: [id])
-  student    User           @relation("BuyerOrders", fields: [studentId], references: [id])
-  freelancer User           @relation("FreelancerOrders", fields: [freelancerId], references: [id])
-  review     Review?
-  messages   ChatMessage[]
-  payment    Payment?
-  payout     Payout?
+  // Immutable snapshot of the selected package at order creation.
+  packageName         String
+  packageDescription  String?
+  packageDeliveryDays Int
+  packageRevisions    Int
+  packageFeatures     String[]
+
+  service            Service                    @relation(fields: [serviceId], references: [id])
+  package            ServicePackage             @relation(fields: [packageId], references: [id])
+  student            User                       @relation("BuyerOrders", fields: [studentId], references: [id])
+  freelancer         User                       @relation("FreelancerOrders", fields: [freelancerId], references: [id])
+  review             Review?
+  messages           ChatMessage[]
+  payment            Payment?
+  payout             Payout?
+  refundRequests     RefundRequest[]
+  deadlineExtensions DeadlineExtensionRequest[]
 
   @@map("orders")
+}
+
+model DeadlineExtensionRequest {
+  id             String                  @id @default(cuid())
+  orderId        String
+  requesterId    String
+  resolvedById   String?
+  additionalDays Int
+  reason         String
+  status         DeadlineExtensionStatus @default(PENDING)
+  activeKey      String?                 @unique
+  createdAt      DateTime                @default(now())
+  resolvedAt     DateTime?
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  requester  User  @relation("ExtensionRequester", fields: [requesterId], references: [id])
+  resolvedBy User? @relation("ExtensionResolver", fields: [resolvedById], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([status])
+  @@map("deadline_extension_requests")
+}
+
+model RefundRequest {
+  id                String              @id @default(cuid())
+  orderId           String
+  requesterId       String
+  resolvedById      String?
+  reason            RefundReason
+  message           String
+  status            RefundRequestStatus @default(PENDING)
+  activeKey         String?             @unique
+  contextSnapshot   Json
+  createdAt         DateTime            @default(now())
+  resolvedAt        DateTime?
+  resolutionComment String?
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  requester  User  @relation("RefundRequester", fields: [requesterId], references: [id])
+  resolvedBy User? @relation("RefundResolver", fields: [resolvedById], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([status])
+  @@map("refund_requests")
 }
 
 // ─── Деньги ──────────────────────────────────────────────────────────────────
@@ -245,7 +342,7 @@ model Payment {
   @@map("payments")
 }
 
-/// Выплата исполнителю. Уходит сразу после успешного списания —
+/// Выплата исполнителю. Уходит после принятия работы заказчиком —
 /// сумма заказа минус комиссия платформы.
 model Payout {
   id            String       @id @default(cuid())
@@ -314,20 +411,22 @@ model Conversation {
 }
 
 model DirectMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  senderId       String
-  content        String?
-  attachmentUrl  String?
-  attachmentName String?
-  attachmentType String?
-  attachmentSize Int?
-  isRead         Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id              String   @id @default(cuid())
+  conversationId  String
+  senderId        String
+  clientMessageId String?
+  content         String?
+  attachmentUrl   String?
+  attachmentName  String?
+  attachmentType  String?
+  attachmentSize  Int?
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
+  @@unique([conversationId, senderId, clientMessageId])
   @@index([conversationId, createdAt])
   @@map("direct_messages")
 }

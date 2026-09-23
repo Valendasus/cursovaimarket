@@ -19,6 +19,7 @@ import { AuthService } from './auth.service'
 import {
 	LoginDto,
 	RegisterDto,
+	ResetPasswordDto,
 	ResendVerificationDto,
 	VerifyEmailDto,
 } from './dto/auth.dto'
@@ -126,5 +127,28 @@ export class AuthController {
 	@ApiOperation({ summary: 'Повторно отправить письмо подтверждения' })
 	resendVerification(@Body() dto: ResendVerificationDto) {
 		return this.authService.resendVerification(dto.email)
+	}
+
+	@Throttle({ default: { limit: 3, ttl: 60_000 } })
+	@Post('password-change/request')
+	@UseGuards(AuthGuard('jwt'))
+	@ApiBearerAuth()
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Отправить ссылку для смены пароля на email' })
+	requestPasswordChange(@CurrentUser() user: { id: string }) {
+		return this.authService.requestPasswordChange(user.id)
+	}
+
+	@Throttle({ default: { limit: 5, ttl: 60_000 } })
+	@Post('password-change/reset')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Сменить пароль по токену из письма' })
+	async resetPassword(
+		@Body() dto: ResetPasswordDto,
+		@Res({ passthrough: true }) res: Response,
+	) {
+		const result = await this.authService.resetPassword(dto.token, dto.password)
+		clearRefreshCookie(res)
+		return result
 	}
 }

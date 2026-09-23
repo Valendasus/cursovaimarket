@@ -345,16 +345,39 @@ export function useChatSocket({
 				if (all.length >= total) break
 				page += 1
 			}
+			let pendingChanged = false
+			all.forEach(msg => {
+				if (
+					msg.clientMessageId &&
+					pendingStoreRef.current[msg.clientMessageId]
+				) {
+					delete pendingStoreRef.current[msg.clientMessageId]
+					pendingChanged = true
+				}
+			})
+			if (pendingChanged) persistPending()
 			setMessages(prev => {
-				const seenIds = new Set(prev.map(m => m.id))
-				const seenClientIds = new Set(
-					prev.map(m => m.clientMessageId).filter(Boolean) as string[],
-				)
 				const merged = [...prev]
+				const indexById = new Map(merged.map((msg, index) => [msg.id, index]))
+				const indexByClientId = new Map<string, number>()
+				merged.forEach((msg, index) => {
+					if (msg.clientMessageId) {
+						indexByClientId.set(msg.clientMessageId, index)
+					}
+				})
 				all.forEach(msg => {
-					if (seenIds.has(msg.id)) return
-					if (msg.clientMessageId && seenClientIds.has(msg.clientMessageId)) {
+					const existingIndex =
+						indexById.get(msg.id) ??
+						(msg.clientMessageId
+							? indexByClientId.get(msg.clientMessageId)
+							: undefined)
+					if (existingIndex !== undefined) {
+						merged[existingIndex] = msg
 						return
+					}
+					indexById.set(msg.id, merged.length)
+					if (msg.clientMessageId) {
+						indexByClientId.set(msg.clientMessageId, merged.length)
 					}
 					merged.push(msg)
 				})
@@ -373,7 +396,10 @@ export function useChatSocket({
 			setStatus('connected')
 			socket.emit('joinRoom', { conversationId })
 			if (partnerId) {
-				socket.emit('subscribePresence', { userIds: [partnerId] })
+				socket.emit('subscribePresence', {
+					userIds: [partnerId],
+					scope: 'active',
+				})
 			}
 		}
 
@@ -493,6 +519,9 @@ export function useChatSocket({
 		if (socket.connected) onConnect()
 
 		return () => {
+			if (socket.connected) {
+				socket.emit('subscribePresence', { userIds: [], scope: 'active' })
+			}
 			socket.off('connect', onConnect)
 			socket.off('newMessage', onNewMessage)
 			socket.off('messagesRead', onMessagesRead)
@@ -519,10 +548,19 @@ export function useChatSocket({
 		if (!partnerId) {
 			setIsPartnerOnline(null)
 			setIsPartnerTyping(false)
+			if (socketRef.current?.connected) {
+				socketRef.current.emit('subscribePresence', {
+					userIds: [],
+					scope: 'active',
+				})
+			}
 			return
 		}
 		if (socketRef.current?.connected) {
-			socketRef.current.emit('subscribePresence', { userIds: [partnerId] })
+			socketRef.current.emit('subscribePresence', {
+				userIds: [partnerId],
+				scope: 'active',
+			})
 		}
 	}, [partnerId])
 

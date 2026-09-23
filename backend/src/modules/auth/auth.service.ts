@@ -13,7 +13,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
-import { randomBytes, randomUUID } from 'crypto'
+import { createHash, randomBytes, randomUUID } from 'crypto'
 import { LoginDto, RegisterDto } from './dto/auth.dto'
 
 @Injectable()
@@ -283,6 +283,68 @@ export class AuthService {
 		}
 	}
 
+	// ─── Password change by email ───────────────────────────────────────────
+
+	/** Send a single-use password-change link to the authenticated user. */
+	async requestPasswordChange(userId: string) {
+		const user = await this.prisma.user.findUnique({ where: { id: userId } })
+		if (!user) throw new UnauthorizedException('Пользователь не найден')
+
+		// Only the newest email link should remain usable.
+		await this.prisma.passwordResetToken.deleteMany({
+			where: { userId, usedAt: null },
+		})
+
+		const token = randomBytes(32).toString('hex')
+		await this.prisma.passwordResetToken.create({
+			data: {
+				tokenHash: this.hashToken(token),
+				userId,
+				expiresAt: new Date(Date.now() + this.passwordResetTtlMs()),
+			},
+		})
+
+		await this.mail.sendPasswordResetEmail(user.email, token)
+		return { message: `Ссылка для смены пароля отправлена на ${user.email}` }
+	}
+
+	/** Consume a password reset token, replace the password and revoke sessions. */
+	async resetPassword(token: string, password: string) {
+		const record = await this.prisma.passwordResetToken.findUnique({
+			where: { tokenHash: this.hashToken(token) },
+		})
+		const now = new Date()
+		if (!record || record.usedAt || record.expiresAt < now) {
+			throw new BadRequestException(
+				'Ссылка для смены пароля недействительна или истекла',
+			)
+		}
+
+		const hashedPassword = await bcrypt.hash(password, 10)
+		await this.prisma.$transaction(async tx => {
+			// updateMany makes token consumption atomic if the link is opened twice.
+			const consumed = await tx.passwordResetToken.updateMany({
+				where: { id: record.id, usedAt: null, expiresAt: { gt: now } },
+				data: { usedAt: now },
+			})
+			if (consumed.count !== 1) {
+				throw new BadRequestException(
+					'Ссылка для смены пароля уже использована',
+				)
+			}
+			await tx.user.update({
+				where: { id: record.userId },
+				data: { password: hashedPassword },
+			})
+			await tx.refreshSession.updateMany({
+				where: { userId: record.userId, revokedAt: null },
+				data: { revokedAt: now },
+			})
+		})
+
+		return { message: 'Пароль успешно изменён. Войдите с новым паролем' }
+	}
+
 	// ─── Helpers ───────────────────────────────────────────────────────────────
 
 	/** Create a fresh single-use verification token and email it to the user */
@@ -321,6 +383,24 @@ export class AuthService {
 			d: 86_400_000,
 		}
 		return value * unitMs[match[2]]
+	}
+
+	private passwordResetTtlMs(): number {
+		const raw = this.config.get<string>('PASSWORD_RESET_EXPIRES_IN', '1h')
+		const match = /^(\d+)([smhd])$/.exec(raw.trim())
+		const fallback = 60 * 60 * 1000
+		if (!match) return fallback
+		const unitMs: Record<string, number> = {
+			s: 1000,
+			m: 60_000,
+			h: 3_600_000,
+			d: 86_400_000,
+		}
+		return Number(match[1]) * unitMs[match[2]]
+	}
+
+	private hashToken(token: string): string {
+		return createHash('sha256').update(token).digest('hex')
 	}
 
 	private async generateAccessToken(

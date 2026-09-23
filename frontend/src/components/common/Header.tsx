@@ -82,7 +82,7 @@ export default function Header() {
 					</Link>
 
 					{/* Desktop Nav */}
-					<nav className='hidden md:flex items-center gap-1'>
+					<nav className='hidden lg:flex items-center gap-1'>
 						{navLinks.map(link =>
 							link.isRoute ? (
 								<Link
@@ -123,7 +123,7 @@ export default function Header() {
 					</nav>
 
 					{/* Auth / User */}
-					<div className='hidden md:flex items-center gap-3'>
+					<div className='hidden lg:flex items-center gap-3'>
 						{isAuthenticated && user ? (
 							<DropdownMenu modal={false}>
 								<DropdownMenuTrigger asChild>
@@ -187,9 +187,11 @@ export default function Header() {
 
 					{/* Mobile toggle */}
 					<button
-						className='md:hidden flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent transition-colors'
+						className='lg:hidden flex items-center justify-center w-11 h-11 rounded-lg hover:bg-accent transition-colors'
 						onClick={() => setMobileOpen(!mobileOpen)}
 						aria-label='Меню'
+						aria-expanded={mobileOpen}
+						aria-controls='mobile-navigation'
 					>
 						{mobileOpen ? (
 							<X className='h-5 w-5' />
@@ -208,7 +210,8 @@ export default function Header() {
 						animate={{ opacity: 1, height: 'auto' }}
 						exit={{ opacity: 0, height: 0 }}
 						transition={{ duration: 0.2 }}
-						className='md:hidden border-t border-border bg-background/95 backdrop-blur-xl overflow-hidden'
+						id='mobile-navigation'
+						className='lg:hidden border-t border-border bg-background/95 backdrop-blur-xl overflow-hidden'
 					>
 						<div className='container-custom py-4 flex flex-col gap-1'>
 							{navLinks.map(link =>

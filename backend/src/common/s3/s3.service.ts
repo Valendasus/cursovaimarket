@@ -64,6 +64,13 @@ export class S3Service {
 		return value.startsWith('s3://')
 	}
 
+	isRefWithinPrefix(value: string, prefix: string): boolean {
+		if (!this.isS3Ref(value)) return false
+		const normalizedPrefix = prefix.replace(/^\/+/, '').replace(/\/+$/, '')
+		const key = this.extractKeyFromRef(value)
+		return key.startsWith(`${normalizedPrefix}/`)
+	}
+
 	normalizeRef(value?: string | null): string | null | undefined {
 		if (!value) return value
 		if (this.isS3Ref(value)) return value

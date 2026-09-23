@@ -1,4 +1,5 @@
 import { getMyOrders } from '@/api/orders'
+import StatePanel from '@/components/common/StatePanel'
 import { OrderCard } from '@/features/dashboard/OrderCard'
 import { PaymentModeBanner } from '@/features/dashboard/PaymentModeBanner'
 import { MessagesTab } from '@/features/dashboard/MessagesTab'
@@ -53,7 +54,13 @@ export default function DashboardPage() {
 	const activeTab = tabFromSearch
 	const [ordersLimit, setOrdersLimit] = useState(10)
 
-	const { data: orders = [], isLoading: ordersLoading } = useQuery({
+	const {
+		data: orders = [],
+		isLoading: ordersLoading,
+		isError: ordersError,
+		isFetching: ordersFetching,
+		refetch: refetchOrders,
+	} = useQuery({
 		queryKey: ['my-orders'],
 		queryFn: getMyOrders,
 		enabled: !!user,
@@ -187,6 +194,10 @@ export default function DashboardPage() {
 													/>
 												))}
 											</div>
+										) : ordersError ? (
+											<p className='text-sm text-muted-foreground'>
+												Статистика временно недоступна
+											</p>
 										) : (
 											<div className='grid sm:grid-cols-3 gap-4'>
 												<div className='bg-muted/50 rounded-xl p-4'>
@@ -233,6 +244,15 @@ export default function DashboardPage() {
 													/>
 												))}
 											</div>
+										) : ordersError ? (
+											<StatePanel
+												compact
+												title='Не удалось загрузить заказы'
+												description='Повторите запрос. Статусы и данные заказов в системе сохранятся.'
+												onRetry={() => void refetchOrders()}
+												retrying={ordersFetching}
+												link={{ label: 'Нужна помощь', to: '/support' }}
+											/>
 										) : orders.length === 0 ? (
 											<div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
 												<ShoppingBag className='w-12 h-12 opacity-20 mb-3' />

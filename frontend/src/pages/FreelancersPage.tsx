@@ -1,8 +1,10 @@
 import { getFreelancers } from '@/api/services'
+import StatePanel from '@/components/common/StatePanel'
 import FreelancerCard from '@/features/freelancers/FreelancerCard'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { AlertCircle, Search, Users, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const LIMIT = 12
@@ -10,10 +12,11 @@ const LIMIT = 12
 export default function FreelancersPage() {
 	const [page, setPage] = useState(1)
 	const [search, setSearch] = useState('')
+	const debouncedSearch = useDebouncedValue(search.trim(), 300)
 
-	const { data, isLoading, isError, isFetching } = useQuery({
-		queryKey: ['freelancers', page],
-		queryFn: () => getFreelancers(page, LIMIT),
+	const { data, isLoading, isError, isFetching, refetch } = useQuery({
+		queryKey: ['freelancers', page, debouncedSearch],
+		queryFn: () => getFreelancers(page, LIMIT, debouncedSearch || undefined),
 		placeholderData: prev => prev,
 	})
 
@@ -23,9 +26,6 @@ export default function FreelancersPage() {
 	}, [page])
 
 	const freelancers = data?.data ?? []
-	const filtered = freelancers.filter(freelancer =>
-		freelancer.name.toLowerCase().includes(search.toLowerCase()),
-	)
 	const total = data?.total ?? 0
 	const totalPages = Math.ceil(total / LIMIT)
 
@@ -42,7 +42,7 @@ export default function FreelancersPage() {
 						Исполнители
 					</h1>
 					<p className='text-muted-foreground'>
-						Проверенные авторы для курсовых, дипломных и рефератов
+						Профили исполнителей, их услуги, опыт и отзывы
 					</p>
 				</motion.div>
 
@@ -54,13 +54,19 @@ export default function FreelancersPage() {
 							id='freelancer-search'
 							name='search'
 							value={search}
-							onChange={e => setSearch(e.target.value)}
+							onChange={e => {
+								setSearch(e.target.value)
+								setPage(1)
+							}}
 							placeholder='Поиск по нику...'
 							className='w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition'
 						/>
 						{search && (
 							<button
-								onClick={() => setSearch('')}
+								onClick={() => {
+									setSearch('')
+									setPage(1)
+								}}
 								className='absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
 							>
 								<X className='w-4 h-4' />
@@ -82,32 +88,31 @@ export default function FreelancersPage() {
 				)}
 
 				{/* Empty */}
-				{!isLoading && !isError && filtered.length === 0 && (
-					<div className='flex flex-col items-center justify-center py-32 text-center'>
-						<Users className='w-12 h-12 text-muted-foreground/30 mb-4' />
-						<p className='text-muted-foreground'>Исполнители не найдены</p>
-					</div>
+				{!isLoading && !isError && freelancers.length === 0 && (
+					<StatePanel
+						variant='empty'
+						title='Исполнители не найдены'
+						description='Измените поисковый запрос или очистите поле, чтобы увидеть всех исполнителей.'
+					/>
 				)}
 
 				{/* Error */}
 				{isError && (
-					<div className='flex flex-col items-center justify-center py-32 text-center'>
-						<AlertCircle className='w-12 h-12 text-destructive/40 mb-4' />
-						<p className='text-foreground font-medium mb-1'>
-							Не удалось загрузить исполнителей
-						</p>
-						<p className='text-sm text-muted-foreground'>
-							Попробуйте обновить страницу
-						</p>
-					</div>
+					<StatePanel
+						title='Не удалось загрузить исполнителей'
+						description='Проверьте соединение и повторите попытку.'
+						onRetry={() => void refetch()}
+						retrying={isFetching}
+						link={{ label: 'Нужна помощь', to: '/support' }}
+					/>
 				)}
 
 				{/* Grid */}
-				{!isLoading && !isError && filtered.length > 0 && (
+				{!isLoading && !isError && freelancers.length > 0 && (
 					<div
 						className={`grid sm:grid-cols-2 xl:grid-cols-3 gap-4 transition-opacity duration-200 ${isFetching ? 'opacity-50' : 'opacity-100'}`}
 					>
-						{filtered.map((fl, i) => (
+						{freelancers.map((fl, i) => (
 							<FreelancerCard key={fl.id} freelancer={fl} index={i} />
 						))}
 					</div>

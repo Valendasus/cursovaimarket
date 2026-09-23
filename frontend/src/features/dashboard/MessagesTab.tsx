@@ -3,6 +3,8 @@ import {
 	getConversations,
 	getUnreadCounts,
 } from '@/api/chat'
+import { extractApiError } from '@/api/client'
+import StatePanel from '@/components/common/StatePanel'
 import { useChatNotifications } from '@/hooks/useChatNotifications'
 import { acquireChatSocket, releaseChatSocket } from '@/lib/chatSocket'
 import { truncate } from '@/lib/utils'
@@ -27,7 +29,13 @@ export function MessagesTab({
 	const presenceSocketRef = useRef<Socket | null>(null)
 	const partnerIdsRef = useRef<string[]>([])
 
-	const { data: conversations = [], isLoading } = useQuery({
+	const {
+		data: conversations = [],
+		isLoading,
+		isError,
+		isFetching,
+		refetch,
+	} = useQuery({
 		queryKey: ['conversations'],
 		queryFn: getConversations,
 		refetchInterval: 15000,
@@ -58,9 +66,7 @@ export function MessagesTab({
 
 		const emitSnapshotRequest = () => {
 			const ids = partnerIdsRef.current
-			if (ids.length) {
-				socket.emit('subscribePresence', { userIds: ids })
-			}
+			socket.emit('subscribePresence', { userIds: ids, scope: 'list' })
 		}
 
 		const onPresenceUpdate = (payload: { userId: string; online: boolean }) => {
@@ -88,12 +94,11 @@ export function MessagesTab({
 		const socket = presenceSocketRef.current
 		if (!socket?.connected) return
 		const ids = partnerIdsRef.current
-		if (ids.length) {
-			socket.emit('subscribePresence', { userIds: ids })
-		}
+		socket.emit('subscribePresence', { userIds: ids, scope: 'list' })
 	}, [conversations])
 
 	const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
+	const [openError, setOpenError] = useState('')
 	const hasSelection = Boolean(selectedConvId)
 	const lastPartnerIdRef = useRef<string | undefined>(undefined)
 
@@ -103,10 +108,15 @@ export function MessagesTab({
 			return
 		}
 		lastPartnerIdRef.current = initialPartnerId
-		findOrCreateConversation(initialPartnerId).then(conv => {
-			setSelectedConvId(conv.id)
-			void queryClient.invalidateQueries({ queryKey: ['conversations'] })
-		})
+		findOrCreateConversation(initialPartnerId)
+			.then(conv => {
+				setOpenError('')
+				setSelectedConvId(conv.id)
+				void queryClient.invalidateQueries({ queryKey: ['conversations'] })
+			})
+			.catch((error: unknown) => {
+				setOpenError(extractApiError(error, 'Не удалось открыть диалог'))
+			})
 	}, [initialPartnerId, queryClient])
 
 	const selectedConv = conversations.find(c => c.id === selectedConvId)
@@ -115,7 +125,16 @@ export function MessagesTab({
 		: false
 
 	return (
-		<div className='glass-card rounded-2xl overflow-hidden min-w-0'>
+		<div className='space-y-3'>
+			{openError && (
+				<div role='alert' className='flex items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive'>
+					<span>{openError}</span>
+					<button type='button' onClick={() => setOpenError('')} className='font-medium hover:underline'>
+						Закрыть
+					</button>
+				</div>
+			)}
+			<div className='glass-card rounded-2xl overflow-hidden min-w-0'>
 			<div
 				className={`flex flex-col sm:flex-row min-w-0 overflow-x-hidden ${
 					hasSelection
@@ -145,6 +164,15 @@ export function MessagesTab({
 										className='h-14 rounded-xl bg-muted/50 animate-pulse'
 									/>
 								))}
+							</div>
+						) : isError ? (
+							<div className='p-3'>
+								<StatePanel
+									compact
+									title='Не удалось загрузить сообщения'
+									onRetry={() => void refetch()}
+									retrying={isFetching}
+								/>
 							</div>
 						) : conversations.length === 0 ? (
 							<div className='flex flex-col items-center justify-center h-full text-muted-foreground p-4'>
@@ -271,6 +299,7 @@ export function MessagesTab({
 						</div>
 					)}
 				</div>
+			</div>
 			</div>
 		</div>
 	)

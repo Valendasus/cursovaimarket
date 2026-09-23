@@ -95,4 +95,22 @@ describe('MailService — выбор транспорта и fallback', () => {
 			'/verify-email?token=abc123',
 		)
 	})
+
+	it('письмо смены пароля ведёт на отдельную страницу', async () => {
+		const transport = new FakeTransport('mail', true)
+		const svc = build([transport])
+		await svc.sendPasswordResetEmail('a@b.ru', 'reset token')
+
+		expect(svc.buildPasswordResetLink('reset token')).toContain(
+			'/reset-password?token=reset%20token',
+		)
+		expect(transport.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				to: 'a@b.ru',
+				subject: expect.stringContaining('Смена пароля'),
+				text: expect.stringContaining('/reset-password?token=reset%20token'),
+			}),
+			expect.any(Object),
+		)
+	})
 })

@@ -463,7 +463,7 @@ export default function ServiceDetailPage() {
 
 							<div className='flex items-center gap-2 mt-4 text-xs text-muted-foreground justify-center'>
 								<Shield className='w-3.5 h-3.5' />
-								Защищённая оплата через платформу
+								Условия оплаты отображаются при оформлении
 							</div>
 						</div>
 					</motion.aside>

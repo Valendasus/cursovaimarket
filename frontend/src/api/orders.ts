@@ -17,7 +17,14 @@ export interface BackendOrder {
 	confirmedAt?: string | null
 	createdAt: string
 	updatedAt: string
+	packageName: string
+	packageDescription?: string | null
+	packageDeliveryDays: number
+	packageRevisions: number
+	packageFeatures: string[]
 	payment?: BackendPayment | null
+	deadlineExtensions?: BackendDeadlineExtension[]
+	refundRequests?: BackendRefundRequest[]
 	service?: { id: string; title: string; images?: string[] }
 	package?: {
 		id: string
@@ -30,6 +37,51 @@ export interface BackendOrder {
 	student?: { id: string; name: string; avatar?: string }
 	freelancer?: { id: string; name: string; avatar?: string }
 	review?: { id: string; rating: number; comment?: string } | null
+}
+
+export type DeadlineExtensionStatus = 'pending' | 'approved' | 'rejected'
+
+export interface BackendDeadlineExtension {
+	id: string
+	additionalDays: number
+	reason: string
+	status: 'PENDING' | 'APPROVED' | 'REJECTED'
+	createdAt: string
+	resolvedAt?: string | null
+}
+
+export interface DeadlineExtension {
+	id: string
+	additionalDays: number
+	reason: string
+	status: DeadlineExtensionStatus
+	createdAt: string
+	resolvedAt?: string | null
+}
+
+export type RefundReason =
+	| 'MISSED_DEADLINE'
+	| 'WORK_NOT_DELIVERED'
+	| 'QUALITY_ISSUE'
+	| 'REQUIREMENTS_NOT_MET'
+	| 'OTHER'
+
+export type RefundRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface BackendRefundRequest {
+	id: string
+	reason: RefundReason
+	message?: string
+	status: 'PENDING' | 'APPROVED' | 'REJECTED'
+	createdAt: string
+}
+
+export interface RefundRequest {
+	id: string
+	reason: RefundReason
+	message?: string
+	status: RefundRequestStatus
+	createdAt: string
 }
 
 export interface BackendPayment {
@@ -73,6 +125,8 @@ export interface Order {
 	createdAt: string
 	updatedAt: string
 	payment?: Payment | null
+	latestDeadlineExtension?: DeadlineExtension
+	latestRefundRequest?: RefundRequest
 	service?: { id: string; title: string; thumbnail?: string }
 	package?: {
 		id: string
@@ -118,6 +172,20 @@ function mapOrder(o: BackendOrder): Order {
 					paidAt: o.payment.paidAt,
 				}
 			: null,
+		latestDeadlineExtension: o.deadlineExtensions?.[0]
+			? {
+					...o.deadlineExtensions[0],
+					status:
+						o.deadlineExtensions[0].status.toLowerCase() as DeadlineExtensionStatus,
+				}
+			: undefined,
+		latestRefundRequest: o.refundRequests?.[0]
+			? {
+					...o.refundRequests[0],
+					status:
+						o.refundRequests[0].status.toLowerCase() as RefundRequestStatus,
+				}
+			: undefined,
 	}
 }
 
@@ -167,6 +235,48 @@ export async function confirmOrder(id: string): Promise<Order> {
 export async function payOrder(id: string): Promise<Order> {
 	const { data } = await apiClient.post<BackendOrder>(`/v1/orders/${id}/pay`)
 	return mapOrder(data)
+}
+
+export async function requestDeadlineExtension(
+	id: string,
+	additionalDays: number,
+	reason: string,
+): Promise<DeadlineExtension> {
+	const { data } = await apiClient.post<BackendDeadlineExtension>(
+		`/v1/orders/${id}/deadline-extensions`,
+		{ additionalDays, reason },
+	)
+	return {
+		...data,
+		status: data.status.toLowerCase() as DeadlineExtensionStatus,
+	}
+}
+
+export async function resolveDeadlineExtension(
+	orderId: string,
+	requestId: string,
+	approved: boolean,
+): Promise<DeadlineExtension> {
+	const { data } = await apiClient.patch<BackendDeadlineExtension>(
+		`/v1/orders/${orderId}/deadline-extensions/${requestId}`,
+		{ approved },
+	)
+	return {
+		...data,
+		status: data.status.toLowerCase() as DeadlineExtensionStatus,
+	}
+}
+
+export async function createRefundRequest(
+	orderId: string,
+	reason: RefundReason,
+	message: string,
+): Promise<RefundRequest> {
+	const { data } = await apiClient.post<BackendRefundRequest>(
+		`/v1/orders/${orderId}/refund-requests`,
+		{ reason, message },
+	)
+	return { ...data, status: data.status.toLowerCase() as RefundRequestStatus }
 }
 
 export interface PaymentsConfig {

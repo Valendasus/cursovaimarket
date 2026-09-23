@@ -50,12 +50,25 @@ export class MailService {
 		return `${this.frontendUrl()}/verify-email?token=${encodeURIComponent(token)}`
 	}
 
+	buildPasswordResetLink(token: string): string {
+		return `${this.frontendUrl()}/reset-password?token=${encodeURIComponent(token)}`
+	}
+
 	async sendVerificationEmail(email: string, token: string): Promise<void> {
 		const link = this.buildVerificationLink(token)
 		await this.deliver({
 			to: email,
 			subject: 'Подтверждение email — КурсовойМаркет',
 			text: `Здравствуйте!\n\nПодтвердите ваш email, перейдя по ссылке:\n${link}\n\nЕсли вы не регистрировались — просто проигнорируйте это письмо.`,
+		})
+	}
+
+	async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+		const link = this.buildPasswordResetLink(token)
+		await this.deliver({
+			to: email,
+			subject: 'Смена пароля — КурсовойМаркет',
+			text: `Здравствуйте!\n\nВы запросили смену пароля. Задайте новый пароль по ссылке:\n${link}\n\nЕсли вы не запрашивали смену пароля, просто проигнорируйте это письмо.`,
 		})
 	}
 

@@ -33,6 +33,7 @@ export class ServicesService {
 
 		const where: Prisma.ServiceWhereInput = {
 			isActive: true,
+			deletedAt: null,
 			...(category && { category }),
 			...(level && { level }),
 			...(freelancerId && { freelancerId }),
@@ -73,7 +74,7 @@ export class ServicesService {
 		const groups = await Promise.all(
 			categories.map(async category => {
 				const services = await this.prisma.service.findMany({
-					where: { category, isActive: true },
+					where: { category, isActive: true, deletedAt: null },
 					include: {
 						freelancer: {
 							select: { id: true, name: true, avatar: true, profile: true },
@@ -124,7 +125,7 @@ export class ServicesService {
 				},
 			},
 		})
-		if (!service || !service.isActive)
+		if (!service || !service.isActive || service.deletedAt)
 			throw new NotFoundException('Услуга не найдена')
 		return this.withSignedAvatars(service)
 	}
@@ -197,7 +198,7 @@ export class ServicesService {
 		// mark the service as inactive rather than physically deleting it.
 		await this.prisma.service.update({
 			where: { id },
-			data: { isActive: false },
+			data: { isActive: false, deletedAt: new Date() },
 		})
 		return { message: 'Услуга удалена' }
 	}
