@@ -29,3 +29,10 @@ coverage/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+
+# Claude Code (локальные настройки)
+.claude/
+
+# Markdown: в репозитории только корневой README
+*.md
+!/README.md

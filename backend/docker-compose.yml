@@ -1,3 +1,7 @@
+# Локальная инфраструктура для разработки.
+# Запуск базы:            docker compose up -d postgres
+# База + pgAdmin (по желанию): docker compose --profile tools up -d
+# Пароли ниже — только для локальной разработки, порты доступны лишь с этого компьютера.
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,24 +12,25 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cursovai
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
-      interval: 10s
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d cursovai']
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:9.8
     container_name: cursovai-pgadmin
+    profiles: ['tools']
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@cursovai.ru
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - '5050:80'
+      - '127.0.0.1:5050:80'
     depends_on:
       postgres:
         condition: service_healthy
