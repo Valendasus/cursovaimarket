@@ -1,4 +1,6 @@
 import { registerApi } from '@/api/auth'
+import OAuthButtons from '@/components/common/OAuthButtons'
+import { safeAuthRedirect } from '@/lib/authRedirect'
 import { extractApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -58,7 +60,7 @@ export default function RegisterPage() {
 			)
 			setUser(result.user, result.accessToken)
 			toast.success('Аккаунт создан! Добро пожаловать 🎉')
-			const safePath = redirect && redirect.startsWith('/') ? redirect : '/'
+			const safePath = safeAuthRedirect(redirect)
 			await navigate({ to: safePath })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Ошибка регистрации')
@@ -86,6 +88,7 @@ export default function RegisterPage() {
 							Уже есть аккаунт?{' '}
 							<Link
 								to='/login'
+								search={{ redirect }}
 								className='text-primary hover:underline font-medium'
 							>
 								Войти
@@ -111,6 +114,7 @@ export default function RegisterPage() {
 						))}
 					</div>
 
+					<OAuthButtons role={role === 'freelancer' ? 'FREELANCER' : 'STUDENT'} redirect={redirect} />
 					<form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
 						{/* Nickname */}
 						<div>

@@ -1,4 +1,6 @@
 import { loginApi } from '@/api/auth'
+import OAuthButtons from '@/components/common/OAuthButtons'
+import { safeAuthRedirect } from '@/lib/authRedirect'
 import { extractApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,7 +37,7 @@ export default function LoginPage() {
 			const result = await loginApi(data.email, data.password)
 			setUser(result.user, result.accessToken)
 			toast.success('Добро пожаловать!')
-			const safePath = redirect && redirect.startsWith('/') ? redirect : '/'
+			const safePath = safeAuthRedirect(redirect)
 			await navigate({ to: safePath })
 		} catch (err: unknown) {
 			const msg = extractApiError(err, 'Неверный email или пароль')
@@ -63,6 +65,7 @@ export default function LoginPage() {
 							Нет аккаунта?{' '}
 							<Link
 								to='/register'
+								search={{ redirect }}
 								className='text-primary hover:underline font-medium'
 							>
 								Зарегистрироваться
@@ -70,6 +73,7 @@ export default function LoginPage() {
 						</p>
 					</div>
 
+					<OAuthButtons redirect={redirect} />
 					<form onSubmit={handleSubmit(onSubmit)} className='space-y-5'>
 						<div>
 							<label className='block text-sm font-medium text-foreground mb-1.5'>

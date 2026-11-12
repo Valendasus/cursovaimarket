@@ -214,6 +214,15 @@ describe('AuthService', () => {
 		).rejects.toBeInstanceOf(UnauthorizedException)
 	})
 
+	it('rejects password login for an OAuth-only account without calling bcrypt', async () => {
+		const { service, prisma } = build()
+		prisma.user.findUnique.mockResolvedValue({ ...user, password: null })
+		await expect(
+			service.login({ email: user.email, password: 'Password123!' }),
+		).rejects.toBeInstanceOf(UnauthorizedException)
+		expect(bcrypt.compare).not.toHaveBeenCalled()
+	})
+
 	it('rotates an active refresh session', async () => {
 		const { service, prisma, jwt } = build()
 		jwt.verifyAsync.mockResolvedValue({
@@ -353,7 +362,7 @@ describe('AuthService', () => {
 			usedAt: null,
 			expiresAt: new Date(Date.now() + 60_000),
 		})
-		prisma.$transaction.mockImplementation(async callback => callback(prisma))
+		prisma.$transaction.mockImplementation(async (callback) => callback(prisma))
 		;(bcrypt.hash as jest.Mock).mockResolvedValueOnce('new-hash')
 
 		await expect(
@@ -403,7 +412,7 @@ describe('AuthService', () => {
 		consumed.prisma.passwordResetToken.updateMany.mockResolvedValue({
 			count: 0,
 		})
-		consumed.prisma.$transaction.mockImplementation(async callback =>
+		consumed.prisma.$transaction.mockImplementation(async (callback) =>
 			callback(consumed.prisma),
 		)
 		await expect(
