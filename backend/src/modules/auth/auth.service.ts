@@ -112,7 +112,7 @@ export class AuthService {
 			include: { profile: true },
 		})
 
-		if (!user || !(await bcrypt.compare(dto.password, user.password))) {
+		if (!user?.password || !(await bcrypt.compare(dto.password, user.password))) {
 			throw new UnauthorizedException('Неверный email или пароль')
 		}
 
@@ -134,6 +134,13 @@ export class AuthService {
 			accessToken,
 			refreshToken,
 		}
+	}
+
+	/** OAuth uses the same revocable sessions as password login. */
+	async createOAuthSession(userId: string) {
+		const user = await this.prisma.user.findUnique({ where: { id: userId } })
+		if (!user) throw new UnauthorizedException('Пользователь не найден')
+		return this.issueRefreshToken(user.id, user.email, user.role, user.name)
 	}
 
 	// ─── Refresh (rotating, revocable via RefreshSession) ──────────────────────

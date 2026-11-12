@@ -93,7 +93,7 @@ enum RefundReason {
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
-  password        String
+  password        String?
   name            String    @unique
   avatar          String?
   role            UserRole  @default(STUDENT)
@@ -117,12 +117,41 @@ model User {
   refreshSessions     RefreshSession[]
   emailVerifications  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
+  oauthAccounts       OAuthAccount[]
   refundRequests      RefundRequest[]            @relation("RefundRequester")
   refundResolutions   RefundRequest[]            @relation("RefundResolver")
   extensionRequests   DeadlineExtensionRequest[] @relation("ExtensionRequester")
   extensionDecisions  DeadlineExtensionRequest[] @relation("ExtensionResolver")
 
   @@map("users")
+}
+
+model OAuthAccount {
+  id        String   @id @default(cuid())
+  provider  String
+  subject   String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@map("oauth_accounts")
+}
+
+// Short-lived, single-use authorization attempts. No provider tokens are stored.
+model OAuthAttempt {
+  stateHash    String   @id
+  browserHash  String
+  provider     String
+  codeVerifier String
+  role         UserRole @default(STUDENT)
+  redirect     String
+  linkUserId   String?
+  expiresAt    DateTime
+
+  @@index([expiresAt])
+  @@map("oauth_attempts")
 }
 
 // ─── Email verification tokens ───────────────────────────────────────────────

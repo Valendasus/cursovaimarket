@@ -6,6 +6,7 @@ import {
 	uploadAvatarApi,
 } from '@/api/auth'
 import { extractApiError } from '@/api/client'
+import OAuthButtons from '@/components/common/OAuthButtons'
 import { useAuthStore } from '@/store/authStore'
 import type { FreelancerProfile, ServiceCategory } from '@/types'
 import { SERVICE_CATEGORIES } from '@/types'
@@ -226,6 +227,11 @@ export function SettingsTab() {
 					Profile
 				</span>
 			</div>
+			<section className='mb-6 rounded-2xl border border-border bg-background/50 p-5'>
+				<h3 className='font-semibold text-foreground'>Способы входа</h3>
+				<p className='mb-4 mt-1 text-sm text-muted-foreground'>Привяжите Google или Яндекс, чтобы входить без пароля. Ваш профиль и заказы останутся на месте.</p>
+				<OAuthButtons link />
+			</section>
 			<form onSubmit={handleSave} className='space-y-5'>
 				<div className='rounded-3xl border border-border/60 bg-gradient-to-br from-white via-primary/5 to-primary/15 p-5 shadow-sm relative overflow-hidden'>
 					<div className='absolute -top-12 -right-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl' />

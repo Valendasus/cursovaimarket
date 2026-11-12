@@ -107,6 +107,8 @@ export async function installApiMocks(
 			})
 		}
 		if (path.endsWith('/auth/logout')) return json(route, { message: 'ok' })
+		if (path.endsWith('/auth/oauth/providers')) return json(route, { google: false, yandex: false })
+		if (path.endsWith('/auth/oauth/accounts')) return json(route, [])
 
 		if (path.endsWith('/orders/my')) return json(route, [])
 		if (path.endsWith('/orders') && method === 'POST') {

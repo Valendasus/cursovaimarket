@@ -27,7 +27,7 @@ import {
 const REFRESH_COOKIE = 'refresh_token'
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days in ms
 
-function setRefreshCookie(res: Response, token: string) {
+export function setRefreshCookie(res: Response, token: string) {
 	res.cookie(REFRESH_COOKIE, token, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',

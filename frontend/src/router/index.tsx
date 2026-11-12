@@ -18,6 +18,7 @@ const FreelancersPage = lazy(() => import('@/pages/FreelancersPage'))
 const FreelancerPage = lazy(() => import('@/pages/FreelancerPage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'))
+const OAuthCallbackPage = lazy(() => import('@/pages/OAuthCallbackPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const VerifyEmailPage = lazy(() => import('@/pages/VerifyEmailPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
@@ -78,7 +79,19 @@ const loginRoute = createRoute({
 const registerRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/register',
+	validateSearch: (s: Record<string, unknown>): { redirect?: string } => ({ redirect: typeof s.redirect === 'string' ? s.redirect : undefined }),
 	component: wrap(RegisterPage),
+})
+const oauthCallbackRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/auth/callback',
+	validateSearch: (s: Record<string, unknown>): { status?: string; error?: string; redirect?: string; mode?: string } => ({
+		status: typeof s.status === 'string' ? s.status : undefined,
+		error: typeof s.error === 'string' ? s.error : undefined,
+		redirect: typeof s.redirect === 'string' ? s.redirect : undefined,
+		mode: typeof s.mode === 'string' ? s.mode : undefined,
+	}),
+	component: wrap(OAuthCallbackPage),
 })
 const verifyEmailRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -159,6 +172,7 @@ const routeTree = rootRoute.addChildren([
 	freelancerRoute,
 	loginRoute,
 	registerRoute,
+	oauthCallbackRoute,
 	verifyEmailRoute,
 	resetPasswordRoute,
 	privacyRoute,
